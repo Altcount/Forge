@@ -47,6 +47,20 @@ function eyes(ctx, b, color, spread, height, size) {
   disc(ctx, b.x + b.r * spread, b.y + b.r * height, b.r * size, color);
 }
 
+// The gap opens a short way to one side of the player, on a side that isn't behind a wall
+function wyrmRingGap(b, f) {
+  const aim = aimAt(b, f);
+  const dist = Math.max(100, Math.hypot(f.player.x - b.x, f.player.y - b.y));
+  const first = Math.random() < 0.5 ? -1 : 1;
+  for (const side of [first, -first]) {
+    const a = aim + side * (0.5 + Math.random() * 0.5);
+    const x = b.x + Math.cos(a) * dist;
+    const y = b.y + Math.sin(a) * dist;
+    if (x > PLAYER_RADIUS && x < f.w - PLAYER_RADIUS && y > PLAYER_RADIUS && y < f.h - PLAYER_RADIUS) return a;
+  }
+  return aim;
+}
+
 const BOSSES = [
   {
     name: "Ember Golem",
@@ -383,23 +397,40 @@ const BOSSES = [
     color: "#ff5a20",
     radius: 30,
     hp: 12,
-    speed: 85,
+    speed: 70,
     update(b, f, dt) {
+      // Winding up: it stands still and shows where the gap will be
+      if (b.ringIn > 0) {
+        b.ringIn -= dt;
+        if (b.ringIn <= 0) {
+          addRing(f, { x: b.x, y: b.y, speed: 170, width: 15, dmg: b.dmg * 0.8, color: "#ff7a30", gapAngle: b.ringGap, gapSize: 1.5 });
+          b.ringGap = undefined;
+        }
+        return;
+      }
       moveToward(b, f.player.x, f.player.y, b.speed, dt);
       b.cd -= dt;
       b.cd2 -= dt;
       if (b.cd2 <= 0) {
-        b.cd2 = 0.5;
-        addZone(f, { kind: "circle", x: b.x, y: b.y, r: 24, delay: 0.3, life: 3.2, dmg: b.dmg * 0.5, color: "#ff5a20", fill: true });
+        b.cd2 = 1;
+        addZone(f, { kind: "circle", x: b.x, y: b.y, r: 20, delay: 0.6, life: 2, dmg: b.dmg * 0.35, color: "#ff5a20", fill: true });
       }
       if (b.cd <= 0) {
-        b.cd = 2.6;
-        // The gap never opens straight at the player, so they have to move to it
-        const gap = aimAt(b, f) + (Math.random() < 0.5 ? -1 : 1) * (0.7 + Math.random() * 0.9);
-        addRing(f, { x: b.x, y: b.y, speed: 210, width: 15, dmg: b.dmg, color: "#ff7a30", gapAngle: gap, gapSize: 0.8 });
+        b.cd = 3.6;
+        b.ringIn = 0.8;
+        b.ringGap = wyrmRingGap(b, f);
       }
     },
     draw(ctx, b, f) {
+      if (b.ringGap !== undefined) {
+        ctx.strokeStyle = "#ff7a30";
+        ctx.lineWidth = 5;
+        ctx.globalAlpha = 0.45 + 0.35 * Math.sin(f.time * 18);
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r + 60, b.ringGap + 0.75, b.ringGap - 0.75 + TAU);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      }
       const jaw = 0.3 + Math.sin(f.time * 6) * 0.15;
       ctx.fillStyle = "#b03810";
       ctx.beginPath();

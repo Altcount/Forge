@@ -218,17 +218,14 @@ function roll() {
     save();
   };
 
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    finish();
-    return;
-  }
-
   els.stage.classList.remove("revealed");
   els.stage.classList.add("rolling");
   els.badge.hidden = true;
   els.tier.textContent = "Rolling…";
   els.odds.textContent = "";
-  const shuffle = setInterval(() => showMetal(rollMetal()), SHUFFLE_STEP_MS);
+  // Reduced motion only drops the flashing names: the wait is game balance, so it stays
+  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const shuffle = calm ? 0 : setInterval(() => showMetal(rollMetal()), SHUFFLE_STEP_MS);
   setTimeout(() => {
     clearInterval(shuffle);
     finish();
