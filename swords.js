@@ -6,11 +6,14 @@ const SWORD_TIERS = [
   { name: "Greatsword", min: 10, max: 12, swingMs: 1800, damageMult: 1.5, worthMult: 1.3, strikes: 10, speed: 1.3, bladeLen: 178, bladeHalf: 14, guardHalf: 30, grip: 31 },
 ];
 
+const MAX_SWORD_UPGRADES = 10;
+const UPGRADE_SWING_CUT = 0.05; // each level takes 5% of the base swing time off, so level 10 is twice as fast
+
 const INFINITY_BLADE = { name: "Infinity Blade", metal: "Mythril", tier: 0, amount: 4 };
 const INFINITY_HITS_BEFORE_EFFECT = 10;
 
 // Coins per point of metal value. Tuned against the 25 coin roll cost.
-const WORTH_RATE = 0.55;
+const WORTH_RATE = 0.27;
 
 const METAL_BY_NAME = new Map(METALS.map((m) => [m.name, m]));
 
@@ -66,6 +69,18 @@ function forgeScores(scores) {
     accuracy: scores.heat * 0.25 + hammer * 0.5 + scores.quench * 0.25,
     perfect: scores.heat === 100 && scores.quench === 100 && scores.strikes.every((s) => s === 100),
   };
+}
+
+function swordUpgrades(sword) {
+  return Math.max(0, Math.min(MAX_SWORD_UPGRADES, Math.floor(sword.upgrades) || 0));
+}
+
+function swordSwingMs(sword) {
+  return SWORD_TIERS[sword.tier].swingMs * (1 - swordUpgrades(sword) * UPGRADE_SWING_CUT);
+}
+
+function swordUpgradeCost(sword) {
+  return Math.round((100 + sword.worth) * (swordUpgrades(sword) + 1));
 }
 
 function swordQuality(accuracy, perfect) {

@@ -3,6 +3,8 @@ const START_COINS = 250;
 const SAVE_KEY = "swordrng.save.v1";
 const SHUFFLE_MS = 900;
 const SHUFFLE_STEP_MS = 70;
+const AUTO_UNLOCK_WAVE = 20; // beating this wave unlocks auto rolling
+const AUTO_GAP_MS = 150; // long enough to see each result
 
 const els = {
   coins: document.getElementById("coins"),
@@ -14,6 +16,7 @@ const els = {
   badge: document.getElementById("newBadge"),
   status: document.getElementById("status"),
   roll: document.getElementById("rollBtn"),
+  auto: document.getElementById("autoBtn"),
   found: document.getElementById("foundCount"),
   rolls: document.getElementById("rollCount"),
   grid: document.getElementById("metalGrid"),
@@ -26,10 +29,12 @@ const state = load();
 const tiles = [];
 let rolling = false;
 let currentView = "roll";
+let autoRolling = false;
+let autoTimer = 0;
 let savesLocked = false; // set once a reset is underway or another tab has taken over
 
 function freshSave() {
-  return { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, skills: {}, fields: { furthest: 1 }, essences: 0, gear: [], equippedGear: {}, potions: [], activePotions: {} };
+  return { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, skills: {}, fields: { furthest: 1 }, essences: 0, gear: [], equippedGear: {}, potions: [], activePotions: {}, settings: {}, redeemed: [] };
 }
 
 // Function declarations: load() runs near the top of this file, before any const below it exists
@@ -108,6 +113,12 @@ function cleanSave(saved) {
   if (validForge(saved.forge)) clean.forge = saved.forge;
   if (isPlainObject(saved.skills)) clean.skills = saved.skills;
   if (isPlainObject(saved.fields) && isAmount(saved.fields.furthest)) clean.fields.furthest = Math.max(1, Math.floor(saved.fields.furthest));
+  if (isPlainObject(saved.settings)) {
+    for (const [id, value] of Object.entries(saved.settings)) {
+      if (typeof value === "boolean") clean.settings[id] = value;
+    }
+  }
+  if (Array.isArray(saved.redeemed)) clean.redeemed = saved.redeemed.filter((code) => typeof code === "string");
   return clean;
 }
 
@@ -134,6 +145,11 @@ function save() {
   }
 }
 
+// Everything in Settings starts on
+function settingOn(id) {
+  return state.settings[id] !== false;
+}
+
 function formatNumber(n) {
   return Math.round(n).toLocaleString("en-US");
 }
@@ -153,6 +169,7 @@ function renderProgress() {
 
 function showView(view) {
   if (currentView === "armory" && view !== "armory") stopSwinging();
+  if (view !== "roll") stopAuto(); // auto only runs while you can see it
   currentView = view;
   els.views.forEach((v) => {
     v.hidden = v.dataset.view !== view;
@@ -162,7 +179,10 @@ function showView(view) {
   });
   if (view === "forge" && !state.forge) showForgeSetup();
   if (view === "armory") renderArmory();
-  if (view === "roll") renderBoosts();
+  if (view === "roll") {
+    renderBoosts();
+    renderAuto();
+  }
   if (view === "fields" && !field) showFieldsLobby();
 }
 
@@ -216,6 +236,7 @@ function roll() {
       renderSelection();
     }
     save();
+    if (autoRolling) autoTimer = setTimeout(continueAuto, AUTO_GAP_MS);
   };
 
   els.stage.classList.remove("revealed");
@@ -224,12 +245,49 @@ function roll() {
   els.tier.textContent = "Rolling…";
   els.odds.textContent = "";
   // Reduced motion only drops the flashing names: the wait is game balance, so it stays
-  const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const calm = !settingOn("animations") || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const shuffle = calm ? 0 : setInterval(() => showMetal(rollMetal()), SHUFFLE_STEP_MS);
   setTimeout(() => {
     clearInterval(shuffle);
     finish();
   }, SHUFFLE_MS / (1 + rollSpeedBonus()));
+}
+
+function autoUnlocked() {
+  return state.fields.furthest > AUTO_UNLOCK_WAVE;
+}
+
+function renderAuto() {
+  const unlocked = autoUnlocked();
+  els.auto.disabled = !unlocked;
+  els.auto.setAttribute("aria-pressed", String(autoRolling));
+  els.auto.textContent = !unlocked ? "Auto: beat wave " + AUTO_UNLOCK_WAVE + " to unlock" : autoRolling ? "Auto: on" : "Auto: off";
+}
+
+function continueAuto() {
+  if (!autoRolling) return;
+  if (state.coins < ROLL_COST) {
+    stopAuto();
+    return;
+  }
+  roll();
+}
+
+function stopAuto() {
+  autoRolling = false;
+  clearTimeout(autoTimer);
+  renderAuto();
+}
+
+function toggleAuto() {
+  if (autoRolling) {
+    stopAuto();
+    return;
+  }
+  if (!autoUnlocked() || state.coins < ROLL_COST) return;
+  autoRolling = true;
+  renderAuto();
+  if (!rolling) roll();
 }
 
 function buildGrid() {
@@ -261,6 +319,7 @@ function renderTile(metal) {
 }
 
 els.roll.addEventListener("click", roll);
+els.auto.addEventListener("click", toggleAuto);
 els.tabs.forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
 els.reset.addEventListener("click", () => {
   if (!confirm("Erase your coins, metals and swords?")) return;
@@ -276,6 +335,7 @@ els.reset.addEventListener("click", () => {
 window.addEventListener("storage", (e) => {
   if (e.key !== SAVE_KEY && e.key !== null) return;
   savesLocked = true;
+  stopAuto();
   document.getElementById("staleNotice").hidden = false;
 });
 document.getElementById("staleReloadBtn").addEventListener("click", () => location.reload());

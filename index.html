@@ -22,6 +22,7 @@
     <button class="tab" type="button" role="tab" data-view="forge" aria-selected="false">Forge</button>
     <button class="tab" type="button" role="tab" data-view="armory" aria-selected="false">Armory</button>
     <button class="tab" type="button" role="tab" data-view="fields" aria-selected="false">Fields</button>
+    <button class="tab" type="button" role="tab" data-view="settings" aria-selected="false">Settings</button>
   </nav>
 
   <main>
@@ -29,21 +30,21 @@
       <section class="stage" id="stage">
         <div class="ingot" aria-hidden="true"></div>
         <h2 class="metal-name" id="metalName">Ready to roll</h2>
-        <p class="metal-tier" id="metalTier">300 metals, from Iron to Adamantite</p>
+        <p class="metal-tier" id="metalTier">700 metals, from Iron to Adamantite</p>
         <p class="metal-odds"><span id="metalOdds"></span> <span class="new-badge" id="newBadge" hidden>New!</span></p>
         <p class="sr-only" id="status" role="status"></p>
       </section>
 
       <button class="roll-btn" id="rollBtn" type="button">Roll <span>25 coins</span></button>
+      <button class="small-btn auto-btn" id="autoBtn" type="button" aria-pressed="false"></button>
       <p class="roll-boosts" id="rollBoosts" hidden></p>
 
       <section class="collection">
         <div class="collection-head">
           <h2>Metals</h2>
-          <p><strong id="foundCount">0</strong> of 300 found · <strong id="rollCount">0</strong> rolls</p>
+          <p><strong id="foundCount">0</strong> of 700 found · <strong id="rollCount">0</strong> rolls</p>
         </div>
         <ol class="metal-grid" id="metalGrid"></ol>
-        <button class="reset-btn" id="resetBtn" type="button">Reset save</button>
       </section>
     </div>
 
@@ -156,6 +157,27 @@
       </section>
     </div>
 
+    <div class="view settings-view" data-view="settings" hidden>
+      <section>
+        <h2 class="section-title">Effects</h2>
+        <div class="settings-list" id="settingsList"></div>
+      </section>
+
+      <section class="code-section">
+        <h2 class="section-title">Codes</h2>
+        <form class="code-form" id="codeForm">
+          <input id="codeInput" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type a code" aria-label="Code">
+          <button class="small-btn" type="submit">Redeem</button>
+        </form>
+        <p class="code-message" id="codeMessage" role="status"></p>
+      </section>
+
+      <section class="code-section">
+        <h2 class="section-title">Save</h2>
+        <button class="reset-btn" id="resetBtn" type="button">Reset save</button>
+      </section>
+    </div>
+
     <div class="view" data-view="fields" hidden>
       <div class="fields-lobby" id="fieldsLobby">
         <h2 class="section-title">The Fields</h2>
@@ -221,5 +243,6 @@
   <script src="bosses.js"></script>
   <script src="fields.js"></script>
   <script src="souls.js"></script>
+  <script src="settings.js"></script>
 </body>
 </html>

@@ -445,6 +445,94 @@ main {
 
 /* Forge setup */
 
+body.no-animations * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.settings-view {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+}
+
+.setting-row input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--ember);
+}
+
+.code-section {
+  margin-top: 28px;
+}
+
+.code-section .reset-btn {
+  margin: 10px 0 0;
+}
+
+.code-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.code-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  text-transform: uppercase;
+}
+
+.code-form input::placeholder {
+  text-transform: none;
+}
+
+.code-form input:focus-visible,
+.setting-row input:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+.code-message {
+  min-height: 22px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.code-message.code-ok {
+  color: #6fd08c;
+  font-weight: 600;
+}
+
+.auto-btn {
+  display: block;
+  margin: 10px auto 0;
+}
+
 .roll-boosts {
   margin-top: 10px;
   color: var(--ember-hot);
@@ -1316,7 +1404,17 @@ main {
   }
 
   .tab {
-    padding: 10px 14px;
+    padding: 10px 8px;
+    font-size: 15px;
+  }
+
+  .metal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tile {
+    column-gap: 6px;
+    padding: 7px 8px;
   }
 }
 

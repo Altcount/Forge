@@ -143,7 +143,7 @@ function fieldWeapon() {
   return {
     name: sword.name,
     damage: sword.damage * damageMultiplier(),
-    swingMs: SWORD_TIERS[sword.tier].swingMs,
+    swingMs: swordSwingMs(sword),
     reach: TIER_REACH[sword.tier],
     arc: TIER_ARC[sword.tier],
     color: sword.infinity ? "#f4f7fb" : sword.color,
@@ -206,6 +206,7 @@ function beginWave(f, wave) {
   if (wave > state.fields.furthest) {
     state.fields.furthest = wave;
     f.dirty = true;
+    if (wave === AUTO_UNLOCK_WAVE + 1) f.notice = { text: "Auto roll unlocked on the Roll tab!", t: 4 };
   }
 }
 
@@ -319,6 +320,7 @@ function hurtPlayer(f, amount) {
 }
 
 function addFloat(f, x, y, text, color) {
+  if (!settingOn("numbers")) return;
   f.floats.push({ x, y, text, color, t: 0.8 });
   if (f.floats.length > 60) f.floats.shift();
 }
@@ -697,11 +699,13 @@ function drawPlayer(ctx, f) {
   const p = f.player;
   const w = f.weapon;
   // Faint reach circle, so players can see how close a sword has to get
-  ctx.strokeStyle = "#ffffff14";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(p.x, p.y, w.reach, 0, TAU);
-  ctx.stroke();
+  if (settingOn("reach")) {
+    ctx.strokeStyle = "#ffffff14";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, w.reach, 0, TAU);
+    ctx.stroke();
+  }
 
   const arc = (w.arc * Math.PI) / 180;
   const progress = p.swingCd > 0 ? 1 - p.swingCd / (w.swingMs / 1000) : 1;
@@ -749,7 +753,7 @@ function drawField(f) {
   for (let x = 0; x < f.w; x += 60) {
     for (let y = (x / 60) % 2 ? 30 : 0; y < f.h; y += 60) ctx.fillRect(x, y, 2, 6);
   }
-  if (f.shake > 0 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+  if (f.shake > 0 && settingOn("shake") && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
     ctx.translate((Math.random() - 0.5) * f.shake, (Math.random() - 0.5) * f.shake);
   }
   f.zones.forEach((z) => drawZone(ctx, z));

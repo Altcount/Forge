@@ -19,8 +19,8 @@ const BREW_RECIPE = { name: "Potion", speed: 1, strikes: 0 };
 
 // Luck flattens the odds (see metalChance). The best charm plus the best potion
 // makes Mythril about 100 times more likely.
-const CHARM_LUCK = 0.32;
-const POTION_LUCK = 0.2;
+const CHARM_LUCK = 0.36;
+const POTION_LUCK = 0.228;
 const GLOVES_SPEED = 1.5; // +150% roll speed from the best gloves
 const POTION_SPEED = 1; // +100% from the best potion
 const POTION_REGEN = 0.03; // share of max HP per second from the best potion

@@ -762,36 +762,57 @@ const BOSSES = [
     },
   },
   {
-    name: "Spiral Oracle",
-    color: "#f060c0",
-    radius: 28,
+    name: "Frost Duelist",
+    color: "#9fdcff",
+    radius: 25,
     hp: 11,
-    speed: 40,
+    speed: 45,
+    // Three lunges, then a teleport and an ice burst, then a stretch walking in with its guard down
     update(b, f, dt) {
-      moveToward(b, f.w / 2, f.h / 2, b.speed, dt);
-      b.t += dt;
+      if (!b.mode) b.mode = "open";
       b.cd -= dt;
-      if (b.cd > 0) return;
-      b.cd = 0.13;
-      const direction = Math.floor(b.t / 6) % 2 ? -1 : 1;
-      b.spin = (b.spin || 0) + direction * 0.38;
-      for (const arm of [0, Math.PI]) {
-        shoot(f, b.x, b.y, b.spin + arm, 130, { dmg: b.dmg * 0.6, color: "#f060c0", r: 6, life: 6 });
+      if (b.mode === "open") {
+        moveToward(b, f.player.x, f.player.y, b.speed, dt);
+        if (b.cd <= 0) {
+          b.combo = 3;
+          b.mode = "ready";
+        }
+      } else if (b.mode === "ready") {
+        const line = lineThrough(b, f.player.x, f.player.y, 400);
+        b.dashAngle = line.angle;
+        addZone(f, { kind: "line", x1: line.x1, y1: line.y1, x2: line.x2, y2: line.y2, width: 26, delay: 0.45, life: 0.14, dmg: b.dmg * 0.9, color: "#bfeaff" });
+        b.mode = "windup";
+        b.cd = 0.45;
+      } else if (b.mode === "windup") {
+        if (b.cd <= 0) {
+          b.mode = "lunge";
+          b.cd = 0.14;
+        }
+      } else {
+        moveBy(f, b, Math.cos(b.dashAngle) * 2850 * dt, Math.sin(b.dashAngle) * 2850 * dt);
+        if (b.cd <= 0) {
+          b.combo--;
+          b.mode = b.combo > 0 ? "ready" : "open";
+          b.cd = b.combo > 0 ? 0.15 : 3;
+          if (b.combo <= 0) {
+            teleportAwayFromPlayer(f, b, 130, 200);
+            radial(f, b, 6, 125, { r: 6, slow: 0.7, color: "#bfeaff", dmg: b.dmg * 0.6 }, Math.random() * TAU);
+          }
+        }
       }
     },
-    draw(ctx, b) {
-      disc(ctx, b.x, b.y, b.r, "#3c1838");
-      ctx.strokeStyle = "#f060c0";
+    draw(ctx, b, f) {
+      ctx.globalAlpha = 0.9;
+      const sway = Math.sin(f.time * 4) * 0.1;
+      shape(ctx, b, "#d4f1ff", [[0, -1.15], [0.65, -0.2], [0.5 + sway, 1.1], [0.1, 0.75], [-0.2 + sway, 1.15], [-0.5, 0.75], [-0.65, -0.2]]);
+      ctx.globalAlpha = 1;
+      eyes(ctx, b, "#17405a", 0.24, -0.4, 0.12);
+      const a = b.dashAngle === undefined ? -0.8 : b.dashAngle;
+      ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 3;
       ctx.beginPath();
-      for (let i = 0; i <= 40; i++) {
-        const a = (b.spin || 0) + i * 0.32;
-        const rad = (i / 40) * b.r * 0.95;
-        const x = b.x + Math.cos(a) * rad;
-        const y = b.y + Math.sin(a) * rad;
-        if (i) ctx.lineTo(x, y);
-        else ctx.moveTo(x, y);
-      }
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x + Math.cos(a) * b.r * 2.1, b.y + Math.sin(a) * b.r * 2.1);
       ctx.stroke();
     },
   },

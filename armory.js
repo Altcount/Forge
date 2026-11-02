@@ -46,8 +46,8 @@ function statList(rows) {
 }
 
 function swordCard(sword, withActions) {
-  const tier = SWORD_TIERS[sword.tier];
-  const dps = sword.damage / (tier.swingMs / 1000);
+  const swingMs = swordSwingMs(sword);
+  const dps = sword.damage / (swingMs / 1000);
   const card = document.createElement("article");
   card.className = "sword-card" + (sword.infinity ? " infinity" : "");
   card.innerHTML =
@@ -55,7 +55,8 @@ function swordCard(sword, withActions) {
     '<div class="sword-body"><h3></h3><p class="sword-quality"></p>' +
     statList([
       ["Damage", formatNumber(sword.damage)],
-      ["Swing", (tier.swingMs / 1000).toFixed(1) + "s"],
+      ["Swing", (swingMs / 1000).toFixed(2) + "s"],
+      ["Upgrades", swordUpgrades(sword) + " / " + MAX_SWORD_UPGRADES],
       ["Per second", formatNumber(dps)],
       ["Worth", formatNumber(sellPrice(sword))],
     ]) +
@@ -79,6 +80,9 @@ function swordCard(sword, withActions) {
     equip.disabled = equipped;
     equip.addEventListener("click", () => equipSword(sword.id));
     actions.appendChild(equip);
+    const cost = swordUpgradeCost(sword);
+    const maxed = swordUpgrades(sword) >= MAX_SWORD_UPGRADES;
+    actions.appendChild(smallButton(maxed ? "Swing fully upgraded" : "Faster swing: " + formatNumber(cost) + " coins", maxed || state.coins < cost, () => upgradeSword(sword.id)));
     const sell = document.createElement("button");
     sell.type = "button";
     sell.className = "small-btn";
@@ -88,6 +92,18 @@ function swordCard(sword, withActions) {
     card.querySelector(".sword-body").appendChild(actions);
   }
   return card;
+}
+
+function upgradeSword(id) {
+  const sword = state.swords.find((s) => s.id === id);
+  if (!sword || swordUpgrades(sword) >= MAX_SWORD_UPGRADES) return;
+  const cost = swordUpgradeCost(sword);
+  if (state.coins < cost) return;
+  state.coins -= cost;
+  sword.upgrades = swordUpgrades(sword) + 1;
+  renderCoins();
+  save();
+  renderArmory();
 }
 
 function equipSword(id) {
@@ -244,7 +260,7 @@ function renderYardStats() {
   armoryEls.hpText.textContent = formatNumber(Math.ceil(yard.hp)) + " / " + formatNumber(dummy.hp);
   armoryEls.hits.textContent = formatNumber(yard.hits);
   const sword = equippedSword();
-  const elapsed = sword && yard.hits ? performance.now() - yard.firstSwingAt + SWORD_TIERS[sword.tier].swingMs / 2 : 0;
+  const elapsed = sword && yard.hits ? performance.now() - yard.firstSwingAt + swordSwingMs(sword) / 2 : 0;
   armoryEls.dps.textContent = elapsed ? formatNumber(yard.dealt / (elapsed / 1000)) : "0";
 }
 
@@ -267,7 +283,7 @@ function resetDummy() {
 function renderArmory() {
   const sword = equippedSword();
   armoryEls.swordSlot.innerHTML = sword ? swordSVG(sword.tier, sword.color, sword.infinity) : "";
-  armoryEls.swordSlot.style.setProperty("--swing", (sword ? SWORD_TIERS[sword.tier].swingMs : 500) + "ms");
+  armoryEls.swordSlot.style.setProperty("--swing", (sword ? swordSwingMs(sword) : 500) + "ms");
   armoryEls.swing.disabled = !sword;
   armoryEls.swing.textContent = sword
     ? "Hold to swing " + sword.name
@@ -288,7 +304,7 @@ function swingLoop() {
     yard.swingTimer = setTimeout(swingLoop, Math.max(20, yard.nextSwingAt - now));
     return;
   }
-  const swingMs = SWORD_TIERS[sword.tier].swingMs;
+  const swingMs = swordSwingMs(sword);
   if (!yard.firstSwingAt) yard.firstSwingAt = now;
   yard.nextSwingAt = now + swingMs;
   armoryEls.swordSlot.classList.remove("swinging");
@@ -328,6 +344,7 @@ function breakDummy() {
 }
 
 function floatNumber(text, special) {
+  if (!settingOn("numbers")) return;
   const el = document.createElement("span");
   el.className = "float-number" + (special ? " special" : "");
   el.style.left = 30 + Math.random() * 40 + "%";
