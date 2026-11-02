@@ -108,15 +108,15 @@ function timingScore(error, perfectWithin, zeroAt) {
   return Math.min(99, Math.round(100 * (1 - (error - perfectWithin) / (zeroAt - perfectWithin))));
 }
 
-const HEAT_PASS_MS = 1400;
+const HEAT_PASS_MS = 1000;
 const HEAT_PERFECT = 0.03;
-const HEAT_ZERO = 0.3;
-const HAMMER_RING_MS = 1100;
-const HAMMER_PERFECT_MS = 45;
-const HAMMER_ZERO_MS = 300;
-const QUENCH_FILL_MS = 2400;
+const HEAT_ZERO = 0.18;
+const HAMMER_RING_MS = 800;
+const HAMMER_PERFECT_MS = 30;
+const HAMMER_ZERO_MS = 180;
+const QUENCH_FILL_MS = 1700;
 const QUENCH_PERFECT = 0.03;
-const QUENCH_ZERO = 0.25;
+const QUENCH_ZERO = 0.15;
 
 // Needle sweeps 0 → 1 → 0 at a steady speed.
 function heatPosition(elapsedMs, speed) {

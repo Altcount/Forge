@@ -6,6 +6,7 @@ const WAVE_CLEAR_HEAL = 0.3; // share of max HP
 const INTERMISSION_SECONDS = 2.5;
 const SOUL_GEM_CHANCE = 0.01;
 const BOSS_SOUL_GEM_CHANCE = 0.15;
+const BOSS_ESSENCE_CHANCE = 1 / 3;
 const PICKUP_RADIUS = 95;
 
 // Always usable, so a player with no coins, metals or swords can still earn their way back
@@ -170,7 +171,7 @@ function createField(wave, w, h) {
     wave,
     phase: "spawning",
     time: 0,
-    player: { x: w / 2, y: h / 2, hp: playerMaxHp(), maxHp: playerMaxHp(), shield: playerMaxShield(), maxShield: playerMaxShield(), iframes: 0, slow: 0, pushX: 0, pushY: 0, swingCd: 0, swingLand: 0, swingAngle: 0, swingShow: 0, target: null, pointer: null },
+    player: { x: w / 2, y: h / 2, hp: playerMaxHp(), maxHp: playerMaxHp(), shield: playerMaxShield(), maxShield: playerMaxShield(), iframes: 0, slow: 0, facing: -Math.PI / 2, pushX: 0, pushY: 0, swingCd: 0, swingLand: 0, swingAngle: 0, swingShow: 0, target: null, pointer: null },
     weapon: fieldWeapon(),
     enemies: [],
     shots: [],
@@ -185,6 +186,7 @@ function createField(wave, w, h) {
     boss: null,
     earnedCoins: 0,
     earnedGems: 0,
+    earnedEssences: 0,
     wavesCleared: 0,
     shake: 0,
     banner: null,
@@ -275,6 +277,7 @@ function waveCleared(f) {
   f.player.hp = Math.min(f.player.maxHp, f.player.hp + f.player.maxHp * WAVE_CLEAR_HEAL);
   f.player.shield = f.player.maxShield;
   f.player.target = null;
+  useUpPotion("regen");
   f.banner = { text: "Wave " + f.wave + " cleared", t: 2 };
   save();
 }
@@ -290,7 +293,8 @@ function endRun(reason) {
   fieldEls.lastRun.hidden = false;
   fieldEls.lastRun.textContent =
     (reason === "died" ? "You fell on wave " : "You left on wave ") + f.wave + " and kept " +
-    formatNumber(f.earnedCoins) + " coins and " + formatNumber(f.earnedGems) + " soul gem" + (f.earnedGems === 1 ? "" : "s") + ".";
+    formatNumber(f.earnedCoins) + " coins, " + formatNumber(f.earnedGems) + " soul gem" + (f.earnedGems === 1 ? "" : "s") +
+    " and " + formatNumber(f.earnedEssences) + " potion essence" + (f.earnedEssences === 1 ? "" : "s") + ".";
   showFieldsLobby();
 }
 
@@ -349,6 +353,9 @@ function dropLoot(f, e) {
   if (Math.random() < (e.isBoss ? BOSS_SOUL_GEM_CHANCE : SOUL_GEM_CHANCE) * loot) {
     f.drops.push({ kind: "gem", amount: soulGemDrop(f.wave), x: e.x + scatter(), y: e.y + scatter() });
   }
+  if (e.isBoss && Math.random() < BOSS_ESSENCE_CHANCE) {
+    f.drops.push({ kind: "essence", amount: 1, x: e.x + scatter(), y: e.y + scatter() });
+  }
 }
 
 function collectDrop(f, d) {
@@ -356,6 +363,10 @@ function collectDrop(f, d) {
     state.coins += d.amount;
     f.earnedCoins += d.amount;
     addFloat(f, f.player.x, f.player.y - 34, "+" + formatNumber(d.amount), "#f0c040");
+  } else if (d.kind === "essence") {
+    state.essences += d.amount;
+    f.earnedEssences += d.amount;
+    addFloat(f, f.player.x, f.player.y - 62, "+" + d.amount + " potion essence", "#6fe0c8");
   } else {
     const before = soulProgress(state.soulGems).level;
     state.soulGems += d.amount;
@@ -439,10 +450,12 @@ function updatePlayer(f, dt) {
   const speed = PLAYER_SPEED * (p.slow > 0 ? 0.55 : 1);
   const moveX = length ? (dx / length) * speed : 0;
   const moveY = length ? (dy / length) * speed : 0;
+  if (length) p.facing = Math.atan2(moveY, moveX);
   p.x = clamp(p.x + (moveX + p.pushX) * dt, PLAYER_RADIUS, f.w - PLAYER_RADIUS);
   p.y = clamp(p.y + (moveY + p.pushY) * dt, PLAYER_RADIUS, f.h - PLAYER_RADIUS);
   p.pushX = 0;
   p.pushY = 0;
+  p.hp = Math.min(p.maxHp, p.hp + regenPerSecond() * p.maxHp * dt);
 }
 
 function updateEnemies(f, dt) {
@@ -657,6 +670,29 @@ function drawEnemy(ctx, e, f) {
   }
 }
 
+// A soldier seen from directly above, drawn facing along +x before rotating
+function drawSoldier(ctx, x, y, angle, uniform) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.fillStyle = "#4b3f2c"; // backpack
+  ctx.fillRect(-14, -8, 8, 16);
+  ctx.fillStyle = uniform; // shoulders
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 8, 14, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillRect(0, -14, 9, 5); // arms reaching forward
+  ctx.fillRect(0, 9, 9, 5);
+  disc(ctx, 10, -11.5, 3, "#d8b08c"); // hands
+  disc(ctx, 10, 11.5, 3, "#d8b08c");
+  disc(ctx, 0, 0, 8.5, "#39422a"); // helmet
+  ctx.strokeStyle = "#232a18";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  disc(ctx, 2.5, -2.5, 2.5, "#55603f");
+  ctx.restore();
+}
+
 function drawPlayer(ctx, f) {
   const p = f.player;
   const w = f.weapon;
@@ -691,8 +727,7 @@ function drawPlayer(ctx, f) {
 
   const flash = p.iframes > 0 && Math.floor(f.time * 16) % 2 === 0;
   ctx.globalAlpha = flash ? 0.45 : 1;
-  disc(ctx, p.x, p.y, PLAYER_RADIUS, p.slow > 0 ? "#a8dcf5" : "#f1ece2");
-  disc(ctx, p.x, p.y, PLAYER_RADIUS * 0.55, "#c4752f");
+  drawSoldier(ctx, p.x, p.y, p.swingShow > 0 ? p.swingAngle : p.facing, p.slow > 0 ? "#8fb8c8" : "#66724a");
   if (p.shield > 0) {
     ctx.strokeStyle = "#7fc4ff";
     ctx.lineWidth = 2;
@@ -728,6 +763,7 @@ function drawField(f) {
   });
   f.drops.forEach((d) => {
     if (d.kind === "gold") disc(ctx, d.x, d.y, 5, "#f0c040");
+    else if (d.kind === "essence") disc(ctx, d.x, d.y, 7, "#6fe0c8");
     else {
       ctx.fillStyle = "#b78cff";
       ctx.beginPath();
@@ -774,7 +810,7 @@ function renderHud(f) {
     fieldEls.hudShieldFill.style.width = (f.player.shield / f.player.maxShield) * 100 + "%";
     fieldEls.hudShieldText.textContent = Math.ceil(f.player.shield) + " / " + f.player.maxShield;
   }
-  fieldEls.hudEarned.textContent = "+" + formatNumber(f.earnedCoins) + " coins · +" + formatNumber(f.earnedGems) + " gems";
+  fieldEls.hudEarned.textContent = "+" + formatNumber(f.earnedCoins) + " coins · +" + formatNumber(f.earnedGems) + " gems · +" + formatNumber(f.earnedEssences) + " essences";
   fieldEls.bossBar.hidden = !f.boss;
   if (f.boss) {
     fieldEls.bossName.textContent = f.boss.def.name + (f.boss.invuln ? " (shielded)" : "");
@@ -833,7 +869,8 @@ function showFieldsLobby() {
   const weapon = fieldWeapon();
   fieldEls.weapon.textContent =
     weapon.name + ": " + formatNumber(weapon.damage) + " damage, " + (weapon.swingMs / 1000).toFixed(1) + "s per swing" +
-    (weapon.bare ? ". Equip a sword in the Armory to hit far harder." : ".");
+    (weapon.bare ? ". Equip a sword in the Armory to hit far harder." : ".") +
+    (activePotion("regen") ? " " + activePotionText("regen") + "." : "");
   renderWaveChooser();
   renderSoulPanel();
 }

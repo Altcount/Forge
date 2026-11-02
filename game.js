@@ -29,7 +29,7 @@ let currentView = "roll";
 let savesLocked = false; // set once a reset is underway or another tab has taken over
 
 function freshSave() {
-  return { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, skills: {}, fields: { furthest: 1 } };
+  return { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, skills: {}, fields: { furthest: 1 }, essences: 0, gear: [], equippedGear: {}, potions: [], activePotions: {} };
 }
 
 // Function declarations: load() runs near the top of this file, before any const below it exists
@@ -61,10 +61,20 @@ function validSword(s) {
     isAmount(s.damage) && isAmount(s.worth) && isAmount(s.accuracy);
 }
 
+function validGear(g) {
+  return isPlainObject(g) && Number.isInteger(g.id) && gearSlots().includes(g.slot) && validMaterials(g.materials) &&
+    typeof g.name === "string" && /^#[0-9a-f]{6}$/i.test(g.color) && isAmount(g.power) && isAmount(g.worth) && isAmount(g.accuracy);
+}
+
+function validPotion(p) {
+  return isPlainObject(p) && Number.isInteger(p.id) && Object.keys(POTIONS).includes(p.type) && isAmount(p.strength);
+}
+
 function validForge(f) {
   const score = (v) => v === null || isAmount(v);
-  return isPlainObject(f) && Number.isInteger(f.tier) && !!SWORD_TIERS[f.tier] && validMaterials(f.materials) &&
-    score(f.heat) && score(f.quench) && Array.isArray(f.strikes) && f.strikes.every(isAmount);
+  if (!isPlainObject(f) || !score(f.heat) || !score(f.quench) || !Array.isArray(f.strikes) || !f.strikes.every(isAmount)) return false;
+  if (f.potion !== undefined) return Object.keys(POTIONS).includes(f.potion);
+  return Number.isInteger(f.tier) && !!FORGE_RECIPES[f.tier] && validMaterials(f.materials);
 }
 
 // Damaged saves keep whatever is still usable, so one bad field can't brick the game
@@ -78,7 +88,22 @@ function cleanSave(saved) {
   // Saves from before forging only tracked lifetime counts, which were all still owned.
   clean.metals = cleanMetalCounts(saved.metals || saved.counts);
   if (Array.isArray(saved.swords)) clean.swords = saved.swords.filter(validSword);
-  clean.swordSeq = clean.swords.reduce((top, s) => Math.max(top, s.id), isAmount(saved.swordSeq) ? saved.swordSeq : 0);
+  if (isAmount(saved.essences)) clean.essences = Math.floor(saved.essences);
+  if (Array.isArray(saved.gear)) clean.gear = saved.gear.filter(validGear);
+  if (Array.isArray(saved.potions)) clean.potions = saved.potions.filter(validPotion);
+  if (isPlainObject(saved.equippedGear)) {
+    for (const slot of gearSlots()) {
+      if (clean.gear.some((g) => g.id === saved.equippedGear[slot] && g.slot === slot)) clean.equippedGear[slot] = saved.equippedGear[slot];
+    }
+  }
+  if (isPlainObject(saved.activePotions)) {
+    for (const type of Object.keys(POTIONS)) {
+      const active = saved.activePotions[type];
+      if (isPlainObject(active) && isAmount(active.strength) && isAmount(active.left) && active.left > 0) clean.activePotions[type] = active;
+    }
+  }
+  const ids = [...clean.swords, ...clean.gear, ...clean.potions].map((item) => item.id);
+  clean.swordSeq = Math.max(isAmount(saved.swordSeq) ? saved.swordSeq : 0, ...ids);
   if (clean.swords.some((s) => s.id === saved.equipped)) clean.equipped = saved.equipped;
   if (validForge(saved.forge)) clean.forge = saved.forge;
   if (isPlainObject(saved.skills)) clean.skills = saved.skills;
@@ -137,6 +162,7 @@ function showView(view) {
   });
   if (view === "forge" && !state.forge) showForgeSetup();
   if (view === "armory") renderArmory();
+  if (view === "roll") renderBoosts();
   if (view === "fields" && !field) showFieldsLobby();
 }
 
@@ -171,12 +197,15 @@ function roll() {
   rolling = true;
   renderCoins();
 
-  const metal = rollMetal();
+  const metal = rollMetal(currentLuck());
   const isNew = !state.counts[metal.name];
   const finish = () => {
     state.counts[metal.name] = (state.counts[metal.name] || 0) + 1;
     state.metals[metal.name] = (state.metals[metal.name] || 0) + 1;
     state.rolls += 1;
+    useUpPotion("luck");
+    useUpPotion("speed");
+    renderBoosts();
     rolling = false;
     reveal(metal, isNew);
     renderTile(metal);
@@ -203,7 +232,7 @@ function roll() {
   setTimeout(() => {
     clearInterval(shuffle);
     finish();
-  }, SHUFFLE_MS);
+  }, SHUFFLE_MS / (1 + rollSpeedBonus()));
 }
 
 function buildGrid() {
@@ -255,5 +284,6 @@ window.addEventListener("storage", (e) => {
 document.getElementById("staleReloadBtn").addEventListener("click", () => location.reload());
 
 buildGrid();
+renderBoosts();
 renderCoins();
 renderProgress();

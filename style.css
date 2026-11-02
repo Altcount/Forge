@@ -445,9 +445,32 @@ main {
 
 /* Forge setup */
 
+.roll-boosts {
+  margin-top: 10px;
+  color: var(--ember-hot);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.brew-section {
+  margin-top: 32px;
+}
+
+.brew-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tier-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .tier-picker {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 8px;
   margin: 12px 0 28px;
 }
@@ -1286,6 +1309,10 @@ main {
 
   .tier-picker {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .brew-list .tier-option .sword-art {
+    height: 72px;
   }
 
   .tab {

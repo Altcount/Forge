@@ -21,6 +21,12 @@ const armoryEls = {
   list: document.getElementById("swordList"),
   empty: document.getElementById("swordEmpty"),
   count: document.getElementById("swordCount"),
+  sellCut: document.getElementById("sellCutNote"),
+  gearList: document.getElementById("gearList"),
+  gearEmpty: document.getElementById("gearEmpty"),
+  potionList: document.getElementById("potionList"),
+  potionEmpty: document.getElementById("potionEmpty"),
+  activeEffects: document.getElementById("activeEffects"),
 };
 
 const yard = { dummyIndex: 0, hp: 0, hits: 0, dealt: 0, firstSwingAt: 0, broken: false, holding: false, holdPointer: null, nextSwingAt: 0, swingTimer: 0, hitTimer: 0, respawnTimer: 0 };
@@ -51,7 +57,7 @@ function swordCard(sword, withActions) {
       ["Damage", formatNumber(sword.damage)],
       ["Swing", (tier.swingMs / 1000).toFixed(1) + "s"],
       ["Per second", formatNumber(dps)],
-      ["Worth", formatNumber(sword.worth)],
+      ["Worth", formatNumber(sellPrice(sword))],
     ]) +
     '<p class="sword-materials"></p></div>';
   card.querySelector("h3").textContent = sword.name;
@@ -76,7 +82,7 @@ function swordCard(sword, withActions) {
     const sell = document.createElement("button");
     sell.type = "button";
     sell.className = "small-btn";
-    sell.textContent = "Sell for " + formatNumber(sword.worth);
+    sell.textContent = "Sell for " + formatNumber(sellPrice(sword));
     sell.addEventListener("click", () => sellSword(sword.id));
     actions.appendChild(sell);
     card.querySelector(".sword-body").appendChild(actions);
@@ -93,11 +99,11 @@ function equipSword(id) {
 function sellSword(id) {
   const sword = state.swords.find((s) => s.id === id);
   if (!sword || performance.now() - lastSaleAt < SELL_COOLDOWN_MS) return;
-  if (sword.infinity && !confirm("Sell the Infinity Blade for " + formatNumber(sword.worth) + " coins? This can't be undone.")) return;
+  if (sword.infinity && !confirm("Sell the Infinity Blade for " + formatNumber(sellPrice(sword)) + " coins? This can't be undone.")) return;
   lastSaleAt = performance.now();
   const wasEquipped = sword.id === state.equipped;
   state.swords = state.swords.filter((s) => s.id !== id);
-  state.coins += sword.worth;
+  state.coins += sellPrice(sword);
   if (wasEquipped) state.equipped = null;
   renderCoins();
   save();
@@ -106,10 +112,113 @@ function sellSword(id) {
 }
 
 function renderSwordList() {
+  const cut = sellCut();
+  armoryEls.sellCut.hidden = cut <= 0;
+  armoryEls.sellCut.textContent = "Your trinkets cut sell prices by " + Math.round(cut * 100) + "%.";
   armoryEls.list.innerHTML = "";
   armoryEls.empty.hidden = state.swords.length > 0;
   armoryEls.count.textContent = state.swords.length;
   [...state.swords].reverse().forEach((sword) => armoryEls.list.appendChild(swordCard(sword, true)));
+}
+
+function smallButton(label, disabled, onClick) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "small-btn";
+  b.textContent = label;
+  b.disabled = disabled;
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function gearCard(gear, withActions) {
+  const card = document.createElement("article");
+  card.className = "sword-card";
+  card.innerHTML =
+    gearSVG(gear.slot, gear.color) +
+    '<div class="sword-body"><h3></h3><p class="sword-quality"></p>' +
+    statList([
+      ["Effect", gearEffectText(gear.slot, gear.power)],
+      ["Worth", formatNumber(sellPrice(gear))],
+    ]) +
+    '<p class="sword-materials"></p></div>';
+  card.querySelector("h3").textContent = gear.name;
+  card.querySelector(".sword-quality").textContent =
+    swordQuality(gear.accuracy, gear.perfect) + " · " + (gear.perfect ? 100 : Math.min(99, Math.floor(gear.accuracy))) + "% accuracy";
+  card.querySelector(".sword-materials").textContent = Object.entries(gear.materials)
+    .sort((a, b) => METAL_BY_NAME.get(b[0]).rank - METAL_BY_NAME.get(a[0]).rank)
+    .map(([name, count]) => count + " " + name)
+    .join(", ");
+  if (withActions) {
+    const equipped = state.equippedGear[gear.slot] === gear.id;
+    const actions = document.createElement("div");
+    actions.className = "sword-actions";
+    actions.appendChild(smallButton(equipped ? "Equipped" : "Equip", equipped, () => equipGear(gear)));
+    actions.appendChild(smallButton("Sell for " + formatNumber(sellPrice(gear)), false, () => sellGear(gear.id)));
+    card.querySelector(".sword-body").appendChild(actions);
+  }
+  return card;
+}
+
+function potionCard(potion, withActions) {
+  const def = POTIONS[potion.type];
+  const card = document.createElement("article");
+  card.className = "sword-card";
+  card.innerHTML =
+    potionSVG(potion.type) +
+    '<div class="sword-body"><h3></h3>' +
+    statList([["Lasts", def.lasts + " " + def.unit]]) +
+    '<p class="sword-materials"></p></div>';
+  card.querySelector("h3").textContent = def.name;
+  card.querySelector(".sword-materials").textContent = potionEffectText(potion.type, potion.strength);
+  if (withActions) {
+    const active = !!activePotion(potion.type);
+    const actions = document.createElement("div");
+    actions.className = "sword-actions";
+    actions.appendChild(smallButton(active ? "One is already active" : "Drink", active, () => drinkPotion(potion.id)));
+    card.querySelector(".sword-body").appendChild(actions);
+  }
+  return card;
+}
+
+function equipGear(gear) {
+  state.equippedGear[gear.slot] = gear.id;
+  save();
+  renderGearAndPotions();
+}
+
+function sellGear(id) {
+  const gear = state.gear.find((g) => g.id === id);
+  if (!gear || performance.now() - lastSaleAt < SELL_COOLDOWN_MS) return;
+  lastSaleAt = performance.now();
+  state.coins += sellPrice(gear);
+  state.gear = state.gear.filter((g) => g.id !== id);
+  if (state.equippedGear[gear.slot] === id) delete state.equippedGear[gear.slot];
+  renderCoins();
+  save();
+  renderSwordList();
+  renderGearAndPotions();
+}
+
+function drinkPotion(id) {
+  const potion = state.potions.find((p) => p.id === id);
+  if (!potion || activePotion(potion.type)) return;
+  state.potions = state.potions.filter((p) => p.id !== id);
+  state.activePotions[potion.type] = { strength: potion.strength, left: POTIONS[potion.type].lasts };
+  save();
+  renderGearAndPotions();
+}
+
+function renderGearAndPotions() {
+  armoryEls.gearList.innerHTML = "";
+  armoryEls.gearEmpty.hidden = state.gear.length > 0;
+  [...state.gear].reverse().forEach((gear) => armoryEls.gearList.appendChild(gearCard(gear, true)));
+  armoryEls.potionList.innerHTML = "";
+  armoryEls.potionEmpty.hidden = state.potions.length > 0;
+  [...state.potions].reverse().forEach((potion) => armoryEls.potionList.appendChild(potionCard(potion, true)));
+  const active = Object.keys(POTIONS).map(activePotionText).filter(Boolean);
+  armoryEls.activeEffects.hidden = active.length === 0;
+  armoryEls.activeEffects.textContent = active.join(" · ");
 }
 
 function renderDummyPicker() {
@@ -167,6 +276,7 @@ function renderArmory() {
   resetDummy();
   yard.nextSwingAt = 0;
   renderSwordList();
+  renderGearAndPotions();
 }
 
 function swingLoop() {

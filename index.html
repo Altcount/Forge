@@ -35,6 +35,7 @@
       </section>
 
       <button class="roll-btn" id="rollBtn" type="button">Roll <span>25 coins</span></button>
+      <p class="roll-boosts" id="rollBoosts" hidden></p>
 
       <section class="collection">
         <div class="collection-head">
@@ -48,7 +49,7 @@
 
     <div class="view" data-view="forge" hidden>
       <div id="forgeSetup">
-        <h2 class="section-title">Choose a size</h2>
+        <h2 class="section-title">Choose what to forge</h2>
         <div class="tier-picker" id="tierPicker"></div>
 
         <div class="forge-columns">
@@ -72,6 +73,14 @@
             <p class="preview-note">Metals are used up when you start, and there's no retry. Accuracy decides the final stats.</p>
           </aside>
         </div>
+
+        <section class="brew-section">
+          <div class="collection-head">
+            <h2 class="section-title">Brew potions</h2>
+            <p><strong id="essenceCount">0</strong> potion essences, dropped by bosses in the Fields</p>
+          </div>
+          <div class="brew-list" id="brewList"></div>
+        </section>
       </div>
 
       <div class="forge-run" id="forgeRun" hidden>
@@ -124,8 +133,26 @@
           <h2 class="section-title">Your swords</h2>
           <p><strong id="swordCount">0</strong> forged and kept</p>
         </div>
+        <p class="roll-boosts sell-cut" id="sellCutNote" hidden></p>
         <p class="empty-note" id="swordEmpty">No swords yet. Head to the forge.</p>
         <div class="sword-list" id="swordList"></div>
+      </section>
+
+      <section class="collection">
+        <div class="collection-head">
+          <h2 class="section-title">Your gear</h2>
+        </div>
+        <p class="empty-note" id="gearEmpty">No gear yet. Forge a Luck Charm or Swift Gloves.</p>
+        <div class="sword-list" id="gearList"></div>
+      </section>
+
+      <section class="collection">
+        <div class="collection-head">
+          <h2 class="section-title">Your potions</h2>
+          <p id="activeEffects" hidden></p>
+        </div>
+        <p class="empty-note" id="potionEmpty">No potions yet. Brew them in the Forge from boss essences.</p>
+        <div class="sword-list" id="potionList"></div>
       </section>
     </div>
 
@@ -187,6 +214,7 @@
 
   <script src="metals.js"></script>
   <script src="swords.js"></script>
+  <script src="gear.js"></script>
   <script src="game.js"></script>
   <script src="armory.js"></script>
   <script src="forge.js"></script>

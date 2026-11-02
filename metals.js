@@ -99,10 +99,24 @@ METALS.forEach((m) => {
   m.oneIn = TOTAL_WEIGHT / m.weight;
 });
 
-function rollMetal() {
-  let r = Math.random() * TOTAL_WEIGHT;
+// Luck flattens the rarity curve: at 0 each metal is RARITY_STEP times rarer than the last,
+// and at 1 they would all be equal. Listed odds and metal values always use luck 0.
+const luckWeight = (metal, luck) => Math.pow(RARITY_STEP, -(metal.rank - 1) * (1 - luck));
+
+function metalChance(metal, luck) {
+  return luckWeight(metal, luck) / METALS.reduce((sum, m) => sum + luckWeight(m, luck), 0);
+}
+
+// How many times more likely the rarest metals are at this luck
+function luckMultiplier(luck) {
+  const mythril = METALS[METALS.length - 2];
+  return metalChance(mythril, luck) * mythril.oneIn;
+}
+
+function rollMetal(luck = 0) {
+  let r = Math.random() * METALS.reduce((sum, m) => sum + luckWeight(m, luck), 0);
   for (const m of METALS) {
-    r -= m.weight;
+    r -= luckWeight(m, luck);
     if (r < 0) return m;
   }
   return METALS[0]; // only reachable through float rounding

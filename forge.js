@@ -9,6 +9,8 @@ const forgeEls = {
   materialList: document.getElementById("materialList"),
   materialEmpty: document.getElementById("materialEmpty"),
   materialCount: document.getElementById("materialCount"),
+  brewList: document.getElementById("brewList"),
+  essenceCount: document.getElementById("essenceCount"),
   fill: document.getElementById("fillBtn"),
   clear: document.getElementById("clearBtn"),
   previewArt: document.getElementById("previewArt"),
@@ -35,18 +37,18 @@ let windowAway = false;
 
 function renderTierPicker() {
   forgeEls.tierPicker.innerHTML = "";
-  SWORD_TIERS.forEach((tier, i) => {
+  FORGE_RECIPES.forEach((tier, i) => {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "tier-option";
     b.setAttribute("aria-pressed", String(i === selection.tier));
     b.innerHTML =
-      swordSVG(i, "#a8b2bb") +
+      recipeArt(i, "#a8b2bb") +
       '<strong></strong><span class="tier-line"></span><span class="tier-line"></span>';
     b.querySelector("strong").textContent = tier.name;
     const lines = b.querySelectorAll(".tier-line");
     lines[0].textContent = tier.min + "–" + tier.max + " metals";
-    lines[1].textContent = (tier.swingMs / 1000).toFixed(1) + "s per swing";
+    lines[1].textContent = isGearRecipe(i) ? tier.line : (tier.swingMs / 1000).toFixed(1) + "s per swing";
     b.addEventListener("click", () => selectTier(i));
     forgeEls.tierPicker.appendChild(b);
   });
@@ -55,7 +57,7 @@ function renderTierPicker() {
 function selectTier(i) {
   selection.tier = i;
   // Dropping to a smaller sword hands back the commonest metals first
-  const max = SWORD_TIERS[i].max;
+  const max = FORGE_RECIPES[i].max;
   const names = Object.keys(selection.materials).sort((a, b) => METAL_BY_NAME.get(a).rank - METAL_BY_NAME.get(b).rank);
   for (const name of names) {
     while (materialTotal(selection.materials) > max && selection.materials[name] > 0) selection.materials[name]--;
@@ -95,13 +97,13 @@ function adjustMaterial(metal, delta) {
   const used = selection.materials[metal.name] || 0;
   const next = used + delta;
   if (next < 0 || next > (state.metals[metal.name] || 0)) return;
-  if (delta > 0 && materialTotal(selection.materials) >= SWORD_TIERS[selection.tier].max) return;
+  if (delta > 0 && materialTotal(selection.materials) >= FORGE_RECIPES[selection.tier].max) return;
   selection.materials[metal.name] = next;
   renderSelection();
 }
 
 function renderSelection() {
-  const tier = SWORD_TIERS[selection.tier];
+  const tier = FORGE_RECIPES[selection.tier];
   const total = materialTotal(selection.materials);
   const full = total >= tier.max;
   materialRows.forEach((row, name) => {
@@ -116,7 +118,7 @@ function renderSelection() {
 
   const ready = total >= tier.min && total <= tier.max;
   const dominant = dominantMetal(selection.materials);
-  forgeEls.previewArt.innerHTML = swordSVG(selection.tier, dominant ? dominant.color : "#a8b2bb");
+  forgeEls.previewArt.innerHTML = recipeArt(selection.tier, dominant ? dominant.color : "#a8b2bb");
   forgeEls.start.disabled = !ready;
   if (!ready) {
     forgeEls.previewStats.innerHTML = '<p class="preview-note"></p>';
@@ -124,17 +126,28 @@ function renderSelection() {
       "Add " + (tier.min - total) + " more metal" + (tier.min - total === 1 ? "" : "s") + " to forge a " + tier.name + ".";
     return;
   }
+  if (isGearRecipe(selection.tier)) {
+    const lowPower = gearPower(selection.tier, selection.materials, 0);
+    const highPower = gearPower(selection.tier, selection.materials, 100);
+    forgeEls.previewStats.innerHTML = statList([
+      ["Lowest", gearEffectText(tier.slot, lowPower)],
+      ["Highest", gearEffectText(tier.slot, highPower)],
+      ["Worth", formatNumber(Math.max(1, gearWorth(selection.tier, selection.materials, 0) * (1 - sellCut()))) + " – " + formatNumber(Math.max(1, gearWorth(selection.tier, selection.materials, 100) * (1 - sellCut())))],
+    ]);
+    return;
+  }
   const low = swordStats(selection.tier, selection.materials, 0);
   const high = swordStats(selection.tier, selection.materials, 100);
+  const keep = 1 - sellCut();
   forgeEls.previewStats.innerHTML = statList([
     ["Damage", formatNumber(low.damage) + " – " + formatNumber(high.damage)],
     ["Swing", (tier.swingMs / 1000).toFixed(1) + "s"],
-    ["Worth", formatNumber(low.worth) + " – " + formatNumber(high.worth)],
+    ["Worth", formatNumber(Math.max(1, low.worth * keep)) + " – " + formatNumber(Math.max(1, high.worth * keep))],
   ]);
 }
 
 function fillWithCommon() {
-  const max = SWORD_TIERS[selection.tier].max;
+  const max = FORGE_RECIPES[selection.tier].max;
   for (const metal of METALS) {
     if (metal.tier > 1) break; // Rare and above are only ever spent on purpose
     let used = selection.materials[metal.name] || 0;
@@ -153,19 +166,49 @@ function showForgeSetup() {
   forgeEls.result.hidden = true;
   renderMaterials();
   renderSelection();
+  renderBrewList();
 }
 
-/* The three minigame stages */
+function renderBrewList() {
+  forgeEls.essenceCount.textContent = formatNumber(state.essences);
+  forgeEls.brewList.innerHTML = "";
+  Object.entries(POTIONS).forEach(([type, def]) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "tier-option";
+    b.disabled = state.essences < ESSENCES_PER_POTION;
+    b.innerHTML = potionSVG(type) + '<strong></strong><span class="tier-line"></span><span class="tier-line"></span>';
+    b.querySelector("strong").textContent = def.name;
+    const lines = b.querySelectorAll(".tier-line");
+    lines[0].textContent = ESSENCES_PER_POTION + " essences";
+    lines[1].textContent = "Lasts " + def.lasts + " " + def.unit;
+    b.addEventListener("click", () => startBrew(type));
+    forgeEls.brewList.appendChild(b);
+  });
+}
+
+function startBrew(type) {
+  if (state.forge || state.essences < ESSENCES_PER_POTION || !POTIONS[type]) return;
+  state.essences -= ESSENCES_PER_POTION;
+  state.forge = { potion: type, heat: null, strikes: [], quench: null, live: false };
+  save();
+  beginRun();
+}
+
+/* The minigame stages: swords and gear use all three, potions only the first */
+
+const forgeRecipe = (f) => (f.potion ? BREW_RECIPE : FORGE_RECIPES[f.tier]);
 
 function forgeStage(f) {
   if (f.heat === null) return "heat";
-  if (f.strikes.length < SWORD_TIERS[f.tier].strikes) return "hammer";
+  if (f.potion) return "done";
+  if (f.strikes.length < forgeRecipe(f).strikes) return "hammer";
   if (f.quench === null) return "quench";
   return "done";
 }
 
 function startForge() {
-  const tier = SWORD_TIERS[selection.tier];
+  const tier = FORGE_RECIPES[selection.tier];
   const total = materialTotal(selection.materials);
   if (total < tier.min || total > tier.max) return;
   const materials = {};
@@ -220,7 +263,7 @@ function enterStage() {
     return;
   }
   const now = performance.now();
-  run = { stage, speed: SWORD_TIERS[f.tier].speed, start: now, readyAt: now + INPUT_GRACE_MS, target: 0, holdStart: null, holdPointer: null, locked: false, paused: false, timer: 0, raf: 0 };
+  run = { stage, speed: forgeRecipe(f).speed, start: now, readyAt: now + INPUT_GRACE_MS, target: 0, holdStart: null, holdPointer: null, locked: false, paused: false, timer: 0, raf: 0 };
   forgeEls.feedback.textContent = "";
   forgeEls.feedback.className = "forge-feedback";
   renderSteps();
@@ -231,13 +274,15 @@ function enterStage() {
 
 function renderSteps() {
   const f = state.forge;
-  const total = SWORD_TIERS[f.tier].strikes;
+  const total = forgeRecipe(f).strikes;
   const avg = f.strikes.length ? Math.floor(f.strikes.reduce((s, n) => s + n, 0) / f.strikes.length) : null;
-  const steps = [
-    ["Heat", f.heat === null ? "" : f.heat + "%", run.stage === "heat"],
-    ["Hammer " + f.strikes.length + "/" + total, avg === null ? "" : avg + "%", run.stage === "hammer"],
-    ["Quench", f.quench === null ? "" : f.quench + "%", run.stage === "quench"],
-  ];
+  const steps = f.potion
+    ? [["Brew", f.heat === null ? "" : f.heat + "%", true]]
+    : [
+        ["Heat", f.heat === null ? "" : f.heat + "%", run.stage === "heat"],
+        ["Hammer " + f.strikes.length + "/" + total, avg === null ? "" : avg + "%", run.stage === "hammer"],
+        ["Quench", f.quench === null ? "" : f.quench + "%", run.stage === "quench"],
+      ];
   forgeEls.steps.innerHTML = "";
   steps.forEach(([label, score, active]) => {
     const li = document.createElement("li");
@@ -275,7 +320,8 @@ function animateStage(draw) {
 
 function enterHeat() {
   run.target = 0.2 + Math.random() * 0.6;
-  setStageText("Heat the metal", "Stop the needle on the bright line.", "Stop");
+  if (state.forge.potion) setStageText("Brew the potion", "Stop the needle on the bright line. Better timing makes a stronger potion.", "Stop");
+  else setStageText("Heat the metal", "Stop the needle on the bright line.", "Stop");
   forgeEls.arena.innerHTML = trackMarkup("heat-track", run.target, 0.12, HEAT_PERFECT);
   const needle = document.getElementById("needle");
   animateStage((now) => {
@@ -284,11 +330,13 @@ function enterHeat() {
 }
 
 function enterHammer() {
+  // Every strike runs at its own pace, so there's no steady rhythm to learn
+  run.speed *= 0.85 + Math.random() * 0.3;
   const speed = run.speed;
-  setStageText("Hammer the blade", "Strike as the shrinking ring meets the circle.", "Strike");
+  setStageText(isGearRecipe(state.forge.tier) ? "Hammer the metal" : "Hammer the blade", "Strike as the shrinking ring meets the circle.", "Strike");
   forgeEls.arena.innerHTML =
     '<div class="anvil"><div class="ring-target"></div><div class="ring" id="ring"></div>' +
-    swordSVG(state.forge.tier, dominantMetal(state.forge.materials).color) + "</div>";
+    recipeArt(state.forge.tier, dominantMetal(state.forge.materials).color) + "</div>";
   if (windowAway) {
     pauseStrike();
     return;
@@ -330,7 +378,7 @@ function forgeBack() {
 
 function enterQuench() {
   run.target = 0.5 + Math.random() * 0.35;
-  setStageText("Quench the blade", "Hold to lower it in, and let go on the bright line. It speeds up, and going past the end ruins it.", "Hold");
+  setStageText(isGearRecipe(state.forge.tier) ? "Quench the metal" : "Quench the blade", "Hold to lower it in, and let go on the bright line. It speeds up, and going past the end ruins it.", "Hold");
   forgeEls.arena.innerHTML = trackMarkup("quench-track", run.target, 0.1, QUENCH_PERFECT);
 }
 
@@ -382,18 +430,39 @@ function commitScore(score) {
 
 function finishForge() {
   const f = state.forge;
-  const sword = buildSword(++state.swordSeq, f.tier, f.materials, { heat: f.heat, strikes: f.strikes, quench: f.quench });
-  state.swords.push(sword);
-  if (state.equipped === null) state.equipped = sword.id;
+  const id = ++state.swordSeq;
+  const scores = { heat: f.heat, strikes: f.strikes, quench: f.quench };
+  let title;
+  let card;
+  let infinity = false;
+  if (f.potion) {
+    const potion = { id, type: f.potion, strength: potionStrength(f.heat) };
+    state.potions.push(potion);
+    title = "Potion brewed";
+    card = potionCard(potion, false);
+  } else if (isGearRecipe(f.tier)) {
+    const gear = buildGear(id, f.tier, f.materials, scores);
+    state.gear.push(gear);
+    if (!equippedGear(gear.slot)) state.equippedGear[gear.slot] = gear.id;
+    title = "Gear forged";
+    card = gearCard(gear, false);
+  } else {
+    const sword = buildSword(id, f.tier, f.materials, scores);
+    state.swords.push(sword);
+    if (state.equipped === null) state.equipped = sword.id;
+    infinity = sword.infinity;
+    title = infinity ? "The Infinity Blade is yours" : "Sword forged";
+    card = swordCard(sword, false);
+  }
   state.forge = null;
   save();
   setTabsLocked(false);
   forgeEls.runPanel.hidden = true;
   forgeEls.result.hidden = false;
-  forgeEls.result.classList.toggle("infinity-result", sword.infinity);
-  forgeEls.resultTitle.textContent = sword.infinity ? "The Infinity Blade is yours" : "Sword forged";
+  forgeEls.result.classList.toggle("infinity-result", infinity);
+  forgeEls.resultTitle.textContent = title;
   forgeEls.resultCard.innerHTML = "";
-  forgeEls.resultCard.appendChild(swordCard(sword, false));
+  forgeEls.resultCard.appendChild(card);
 }
 
 /* Input */
