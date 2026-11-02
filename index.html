@@ -12,7 +12,8 @@
     <div class="coins">
       <span class="coin" aria-hidden="true"></span>
       <strong id="coins">0</strong> coins
-      <span class="income" id="income"></span>
+      <span class="gem" aria-hidden="true"></span>
+      <strong class="gem-count" id="soulGems">0</strong> <span class="gem-label">soul gems</span>
     </div>
   </header>
 
@@ -20,6 +21,7 @@
     <button class="tab" type="button" role="tab" data-view="roll" aria-selected="true">Roll</button>
     <button class="tab" type="button" role="tab" data-view="forge" aria-selected="false">Forge</button>
     <button class="tab" type="button" role="tab" data-view="armory" aria-selected="false">Armory</button>
+    <button class="tab" type="button" role="tab" data-view="fields" aria-selected="false">Fields</button>
   </nav>
 
   <main>
@@ -126,6 +128,42 @@
         <div class="sword-list" id="swordList"></div>
       </section>
     </div>
+
+    <div class="view" data-view="fields" hidden>
+      <div class="fields-lobby" id="fieldsLobby">
+        <h2 class="section-title">The Fields</h2>
+        <p class="fields-intro">Fight waves of enemies for gold and rare soul gems. Every wave is stronger and pays more, and ends with a boss.</p>
+        <p class="fields-last-run" id="fieldsLastRun" role="status" hidden></p>
+        <p class="fields-weapon" id="fieldsWeapon"></p>
+        <div class="wave-chooser">
+          <div class="collection-head">
+            <h3>Starting wave <strong id="waveValue">1</strong></h3>
+            <p>Furthest reached: <strong id="furthestWave">1</strong></p>
+          </div>
+          <div class="wave-controls">
+            <button class="step" id="waveMinus" type="button" aria-label="Start one wave earlier">−</button>
+            <input id="waveRange" type="range" min="1" max="1" value="1" step="1" aria-label="Starting wave">
+            <button class="step" id="wavePlus" type="button" aria-label="Start one wave later">+</button>
+          </div>
+        </div>
+        <button class="roll-btn" id="startFieldBtn" type="button">Enter the Fields</button>
+        <p class="preview-note fields-note">Move with WASD or the arrow keys, or hold on the field and your character walks to your pointer. Your sword swings by itself at anything in reach. You keep everything you pick up, even if you fall.</p>
+      </div>
+
+      <div class="fields-run" id="fieldsRun" hidden>
+        <div class="field-hud">
+          <strong id="hudWave"></strong>
+          <div class="hud-hp"><div class="hud-hp-fill" id="hudHpFill"></div><span id="hudHpText"></span></div>
+          <span class="hud-earned" id="hudEarned"></span>
+        </div>
+        <div class="boss-bar" id="bossBar" hidden>
+          <span id="bossName"></span>
+          <div class="boss-track"><div class="boss-fill" id="bossFill"></div></div>
+        </div>
+        <canvas class="field-canvas" id="fieldCanvas"></canvas>
+        <button class="small-btn leave-btn" id="leaveFieldBtn" type="button">Leave the Fields</button>
+      </div>
+    </div>
   </main>
 
   <script src="metals.js"></script>
@@ -133,5 +171,7 @@
   <script src="game.js"></script>
   <script src="armory.js"></script>
   <script src="forge.js"></script>
+  <script src="bosses.js"></script>
+  <script src="fields.js"></script>
 </body>
 </html>

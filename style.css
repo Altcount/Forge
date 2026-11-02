@@ -74,10 +74,16 @@ p {
   background: radial-gradient(circle at 35% 30%, #ffe48a, var(--coin) 55%, #a87a14);
 }
 
-.income {
-  margin-left: 4px;
-  color: var(--muted);
-  font-size: 13px;
+.gem {
+  width: 11px;
+  height: 15px;
+  margin-left: 8px;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: #b78cff;
+}
+
+.coins strong.gem-count {
+  color: #cdb0ff;
 }
 
 main {
@@ -991,7 +997,156 @@ main {
   margin-top: 8px;
 }
 
+/* Fields */
+
+.fields-lobby {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.fields-intro {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.fields-last-run {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ember);
+  border-radius: 8px;
+  background: #e8833a1a;
+}
+
+.fields-weapon {
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+.wave-chooser {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.wave-chooser h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.wave-chooser h3 strong {
+  color: var(--ember-hot);
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wave-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wave-controls input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--ember);
+}
+
+.fields-note {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.fields-run {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+.field-hud {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-bottom: 8px;
+}
+
+.hud-hp {
+  position: relative;
+  flex: 1;
+  min-width: 140px;
+  height: 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #0f0d0a;
+}
+
+.hud-hp-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #6fd08c, #379058);
+}
+
+.hud-hp span {
+  position: absolute;
+  inset: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  text-shadow: 0 1px 2px #000;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-earned {
+  color: var(--muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.boss-bar {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.boss-track {
+  height: 12px;
+  margin-top: 3px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #0f0d0a;
+}
+
+.boss-fill {
+  height: 100%;
+  background: linear-gradient(180deg, #ff6d8f, #b82a55);
+}
+
+.field-canvas {
+  display: block;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.leave-btn {
+  display: block;
+  margin: 10px auto 0;
+}
+
 @media (max-width: 720px) {
+  .gem-label {
+    display: none;
+  }
+
   .forge-columns {
     grid-template-columns: 1fr;
   }

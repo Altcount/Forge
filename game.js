@@ -1,13 +1,12 @@
 const ROLL_COST = 25;
 const START_COINS = 250;
-const INCOME_PER_SEC = 1; // safety net so a broke player can always roll again; selling swords is the real income
 const SAVE_KEY = "swordrng.save.v1";
 const SHUFFLE_MS = 900;
 const SHUFFLE_STEP_MS = 70;
 
 const els = {
   coins: document.getElementById("coins"),
-  income: document.getElementById("income"),
+  gems: document.getElementById("soulGems"),
   stage: document.getElementById("stage"),
   name: document.getElementById("metalName"),
   tier: document.getElementById("metalTier"),
@@ -29,7 +28,7 @@ let rolling = false;
 let currentView = "roll";
 
 function load() {
-  const fresh = { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0 };
+  const fresh = { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, fields: { furthest: 1 } };
   try {
     const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
     // Saves from before forging only tracked lifetime counts, which were all still owned.
@@ -54,6 +53,7 @@ function formatNumber(n) {
 
 function renderCoins() {
   els.coins.textContent = formatNumber(state.coins);
+  els.gems.textContent = formatNumber(state.soulGems);
   els.roll.disabled = rolling || state.coins < ROLL_COST;
 }
 
@@ -73,11 +73,12 @@ function showView(view) {
   });
   if (view === "forge" && !state.forge) showForgeSetup();
   if (view === "armory") renderArmory();
+  if (view === "fields" && !field) showFieldsLobby();
 }
 
-function setTabsLocked(locked) {
+function setTabsLocked(locked, keepView = "forge") {
   els.tabs.forEach((t) => {
-    t.disabled = locked && t.dataset.view !== "forge";
+    t.disabled = locked && t.dataset.view !== keepView;
   });
 }
 
@@ -175,13 +176,6 @@ els.reset.addEventListener("click", () => {
   location.reload();
 });
 
-setInterval(() => {
-  state.coins += INCOME_PER_SEC;
-  renderCoins();
-  save();
-}, 1000);
-
-els.income.textContent = "+" + INCOME_PER_SEC + "/s";
 buildGrid();
 renderCoins();
 renderProgress();
