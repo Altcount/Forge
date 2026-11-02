@@ -1,4 +1,5 @@
 const FEEDBACK_MS = 650;
+const INPUT_GRACE_MS = 300; // ignores the second half of a double-tap that started the stage
 
 const forgeEls = {
   setup: document.getElementById("forgeSetup"),
@@ -28,6 +29,7 @@ const forgeEls = {
 const selection = { tier: 0, materials: {} };
 const materialRows = new Map();
 let run = null; // the live minigame stage; scores already earned live in state.forge
+let windowAway = false;
 
 /* Setup: choose a size and metals */
 
@@ -176,8 +178,9 @@ function startForge() {
     state.metals[name] -= count;
     renderTile(METAL_BY_NAME.get(name));
   }
-  // Saved after every input, so reloading can't undo a bad score
-  state.forge = { tier: selection.tier, materials, heat: null, strikes: [], quench: null };
+  // Saved after every input, and `live` marks a strike or hold in progress,
+  // so reloading can't undo a bad score
+  state.forge = { tier: selection.tier, materials, heat: null, strikes: [], quench: null, live: false };
   selection.materials = {};
   save();
   beginRun();
@@ -188,7 +191,17 @@ function beginRun() {
   forgeEls.setup.hidden = true;
   forgeEls.result.hidden = true;
   forgeEls.runPanel.hidden = false;
+  window.scrollTo(0, 0);
   enterStage();
+}
+
+// A reload during a strike or hold counts as missing it
+function settleInterruptedInput(f) {
+  if (!f.live) return;
+  f.live = false;
+  if (forgeStage(f) === "hammer") f.strikes.push(0);
+  else if (forgeStage(f) === "quench") f.quench = 0;
+  save();
 }
 
 function clearRun() {
@@ -206,7 +219,8 @@ function enterStage() {
     finishForge();
     return;
   }
-  run = { stage, speed: SWORD_TIERS[f.tier].speed, start: performance.now(), target: 0, holdStart: null, locked: false, timer: 0, raf: 0 };
+  const now = performance.now();
+  run = { stage, speed: SWORD_TIERS[f.tier].speed, start: now, readyAt: now + INPUT_GRACE_MS, target: 0, holdStart: null, holdPointer: null, locked: false, paused: false, timer: 0, raf: 0 };
   forgeEls.feedback.textContent = "";
   forgeEls.feedback.className = "forge-feedback";
   renderSteps();
@@ -275,15 +289,43 @@ function enterHammer() {
   forgeEls.arena.innerHTML =
     '<div class="anvil"><div class="ring-target"></div><div class="ring" id="ring"></div>' +
     swordSVG(state.forge.tier, dominantMetal(state.forge.materials).color) + "</div>";
+  if (windowAway) {
+    pauseStrike();
+    return;
+  }
   const ring = document.getElementById("ring");
   const ringMs = hammerRingMs(speed);
   animateStage((now) => {
     const left = 1 - (now - run.start) / ringMs;
-    ring.style.transform = "scale(" + (1 + 1.4 * Math.max(0, left)) + ")";
+    ring.style.transform = "scale(" + (1 + Math.max(0, left)) + ")";
   });
-  run.timer = setTimeout(() => {
-    if (!document.hidden) commitScore(0); // hidden tabs restart the strike instead of missing it
-  }, ringMs + hammerLateMs(speed));
+  state.forge.live = true;
+  save();
+  run.timer = setTimeout(() => commitScore(0), ringMs + hammerLateMs(speed));
+}
+
+function pauseStrike() {
+  clearRun();
+  run.paused = true;
+  state.forge.live = false;
+  save();
+  forgeEls.stageHint.textContent = "Paused. Come back to the game to carry on.";
+}
+
+// Leaving before the strike is due replays it. Leaving after it was due can no longer
+// be perfect, so it counts as missed, or leaving would be a free retry.
+function forgeAway() {
+  windowAway = true;
+  forgeRelease();
+  if (!run || run.locked || run.paused || run.stage !== "hammer") return;
+  const lastPerfectMs = hammerRingMs(run.speed) + HAMMER_PERFECT_MS / run.speed;
+  if (performance.now() - run.start > lastPerfectMs) commitScore(0);
+  else pauseStrike();
+}
+
+function forgeBack() {
+  windowAway = false;
+  if (run && run.paused) enterStage();
 }
 
 function enterQuench() {
@@ -292,9 +334,10 @@ function enterQuench() {
   forgeEls.arena.innerHTML = trackMarkup("quench-track", run.target, 0.1, QUENCH_PERFECT);
 }
 
-function forgePress() {
-  if (!run || run.locked) return;
+function forgePress(pointerId) {
+  if (!run || run.locked || run.paused) return;
   const now = performance.now();
+  if (now < run.readyAt) return;
   if (run.stage === "heat") {
     document.getElementById("needle").style.left = heatPosition(now - run.start, run.speed) * 100 + "%";
     commitScore(scoreHeat(now - run.start, run.target, run.speed));
@@ -302,6 +345,9 @@ function forgePress() {
     commitScore(scoreHammer(now - run.start, run.speed));
   } else if (run.holdStart === null) {
     run.holdStart = now;
+    run.holdPointer = pointerId;
+    state.forge.live = true;
+    save();
     run.timer = setTimeout(() => commitScore(0), quenchFillMs(run.speed));
     const needle = document.getElementById("needle");
     const fill = document.getElementById("trackFill");
@@ -322,6 +368,7 @@ function commitScore(score) {
   const f = state.forge;
   clearRun();
   run.locked = true;
+  f.live = false;
   if (run.stage === "heat") f.heat = score;
   else if (run.stage === "hammer") f.strikes.push(score);
   else f.quench = score;
@@ -352,25 +399,30 @@ function finishForge() {
 /* Input */
 
 forgeEls.action.addEventListener("pointerdown", (e) => {
-  if (e.button === 0) forgePress();
+  if (e.button === 0) forgePress(e.pointerId);
 });
-window.addEventListener("pointerup", forgeRelease);
-window.addEventListener("pointercancel", forgeRelease);
-window.addEventListener("blur", forgeRelease);
+// Only the finger or button holding the quench can let go of it
+function forgePointerRelease(e) {
+  if (run && run.holdPointer === e.pointerId) forgeRelease();
+}
+window.addEventListener("pointerup", forgePointerRelease);
+window.addEventListener("pointercancel", forgePointerRelease);
+window.addEventListener("blur", forgeAway);
+window.addEventListener("focus", forgeBack);
 forgeEls.action.addEventListener("contextmenu", (e) => e.preventDefault());
 
 document.addEventListener("keydown", (e) => {
   if (!run || (e.code !== "Space" && e.code !== "Enter")) return;
   e.preventDefault();
-  if (!e.repeat) forgePress();
+  if (!e.repeat) forgePress(null);
 });
 document.addEventListener("keyup", (e) => {
-  if (e.code === "Space" || e.code === "Enter") forgeRelease();
+  if ((e.code === "Space" || e.code === "Enter") && run && run.holdPointer === null) forgeRelease();
 });
 
-// Returning to the tab replays the strike that was on screen when it was hidden
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden && run && !run.locked && run.stage === "hammer") enterStage();
+  if (document.hidden) forgeAway();
+  else forgeBack();
 });
 
 forgeEls.fill.addEventListener("click", fillWithCommon);
@@ -383,7 +435,8 @@ forgeEls.again.addEventListener("click", showForgeSetup);
 forgeEls.toArmory.addEventListener("click", () => showView("armory"));
 
 renderTierPicker();
+showView(state.forge ? "forge" : "roll");
 if (state.forge) {
-  showView("forge");
+  settleInterruptedInput(state.forge);
   beginRun();
 }

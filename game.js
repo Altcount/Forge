@@ -26,20 +26,82 @@ const state = load();
 const tiles = [];
 let rolling = false;
 let currentView = "roll";
+let savesLocked = false; // set once a reset is underway or another tab has taken over
+
+function freshSave() {
+  return { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, skills: {}, fields: { furthest: 1 } };
+}
+
+// Function declarations: load() runs near the top of this file, before any const below it exists
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function isAmount(v) {
+  return Number.isFinite(v) && v >= 0;
+}
+
+function cleanMetalCounts(counts) {
+  const clean = {};
+  if (!isPlainObject(counts)) return clean;
+  for (const [name, n] of Object.entries(counts)) {
+    if (METAL_BY_NAME.has(name) && isAmount(n)) clean[name] = Math.floor(n);
+  }
+  return clean;
+}
+
+function validMaterials(materials) {
+  return isPlainObject(materials) && Object.keys(materials).length > 0 &&
+    Object.entries(materials).every(([name, n]) => METAL_BY_NAME.has(name) && isAmount(n));
+}
+
+function validSword(s) {
+  return isPlainObject(s) && Number.isInteger(s.id) && Number.isInteger(s.tier) && !!SWORD_TIERS[s.tier] &&
+    validMaterials(s.materials) && typeof s.name === "string" && /^#[0-9a-f]{6}$/i.test(s.color) &&
+    isAmount(s.damage) && isAmount(s.worth) && isAmount(s.accuracy);
+}
+
+function validForge(f) {
+  const score = (v) => v === null || isAmount(v);
+  return isPlainObject(f) && Number.isInteger(f.tier) && !!SWORD_TIERS[f.tier] && validMaterials(f.materials) &&
+    score(f.heat) && score(f.quench) && Array.isArray(f.strikes) && f.strikes.every(isAmount);
+}
+
+// Damaged saves keep whatever is still usable, so one bad field can't brick the game
+function cleanSave(saved) {
+  const clean = freshSave();
+  if (!isPlainObject(saved)) return clean;
+  if (isAmount(saved.coins)) clean.coins = saved.coins;
+  if (isAmount(saved.rolls)) clean.rolls = saved.rolls;
+  if (isAmount(saved.soulGems)) clean.soulGems = saved.soulGems;
+  clean.counts = cleanMetalCounts(saved.counts);
+  // Saves from before forging only tracked lifetime counts, which were all still owned.
+  clean.metals = cleanMetalCounts(saved.metals || saved.counts);
+  if (Array.isArray(saved.swords)) clean.swords = saved.swords.filter(validSword);
+  clean.swordSeq = clean.swords.reduce((top, s) => Math.max(top, s.id), isAmount(saved.swordSeq) ? saved.swordSeq : 0);
+  if (clean.swords.some((s) => s.id === saved.equipped)) clean.equipped = saved.equipped;
+  if (validForge(saved.forge)) clean.forge = saved.forge;
+  if (isPlainObject(saved.skills)) clean.skills = saved.skills;
+  if (isPlainObject(saved.fields) && isAmount(saved.fields.furthest)) clean.fields.furthest = Math.max(1, Math.floor(saved.fields.furthest));
+  return clean;
+}
 
 function load() {
-  const fresh = { coins: START_COINS, rolls: 0, counts: {}, metals: {}, swords: [], equipped: null, forge: null, swordSeq: 0, soulGems: 0, fields: { furthest: 1 } };
+  let raw = null;
   try {
-    const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-    // Saves from before forging only tracked lifetime counts, which were all still owned.
-    if (saved && !saved.metals) saved.metals = Object.assign({}, saved.counts);
-    return Object.assign(fresh, saved);
+    raw = localStorage.getItem(SAVE_KEY);
+    return cleanSave(JSON.parse(raw));
   } catch (e) {
-    return fresh;
+    // Unreadable save: keep a copy, because the next save overwrites it
+    try {
+      if (raw !== null) localStorage.setItem(SAVE_KEY + ".unreadable", raw);
+    } catch (err) {}
+    return freshSave();
   }
 }
 
 function save() {
+  if (savesLocked) return;
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   } catch (e) {
@@ -54,7 +116,9 @@ function formatNumber(n) {
 function renderCoins() {
   els.coins.textContent = formatNumber(state.coins);
   els.gems.textContent = formatNumber(state.soulGems);
-  els.roll.disabled = rolling || state.coins < ROLL_COST;
+  // aria-disabled during the shuffle: really disabling it would drop keyboard focus each roll
+  els.roll.setAttribute("aria-disabled", String(rolling));
+  els.roll.disabled = !rolling && state.coins < ROLL_COST;
 }
 
 function renderProgress() {
@@ -118,6 +182,10 @@ function roll() {
     renderTile(metal);
     renderProgress();
     renderCoins();
+    if (currentView === "forge" && !state.forge) {
+      renderMaterials();
+      renderSelection();
+    }
     save();
   };
 
@@ -170,11 +238,21 @@ els.roll.addEventListener("click", roll);
 els.tabs.forEach((t) => t.addEventListener("click", () => showView(t.dataset.view)));
 els.reset.addEventListener("click", () => {
   if (!confirm("Erase your coins, metals and swords?")) return;
+  savesLocked = true; // a roll finishing before the reload must not write the old save back
   try {
     localStorage.removeItem(SAVE_KEY);
   } catch (e) {}
   location.reload();
 });
+
+// Two tabs saving over each other would lose progress and could undo a botched forge,
+// so a tab stops saving as soon as another one writes.
+window.addEventListener("storage", (e) => {
+  if (e.key !== SAVE_KEY && e.key !== null) return;
+  savesLocked = true;
+  document.getElementById("staleNotice").hidden = false;
+});
+document.getElementById("staleReloadBtn").addEventListener("click", () => location.reload());
 
 buildGrid();
 renderCoins();

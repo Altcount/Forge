@@ -23,7 +23,9 @@ const armoryEls = {
   count: document.getElementById("swordCount"),
 };
 
-const yard = { dummyIndex: 0, hp: 0, hits: 0, dealt: 0, firstSwingAt: 0, broken: false, holding: false, nextSwingAt: 0, swingTimer: 0, hitTimer: 0, respawnTimer: 0 };
+const yard = { dummyIndex: 0, hp: 0, hits: 0, dealt: 0, firstSwingAt: 0, broken: false, holding: false, holdPointer: null, nextSwingAt: 0, swingTimer: 0, hitTimer: 0, respawnTimer: 0 };
+const SELL_COOLDOWN_MS = 400; // the list reflows after a sale, so a double-click would sell the next sword too
+let lastSaleAt = -Infinity;
 
 function equippedSword() {
   return state.swords.find((s) => s.id === state.equipped) || null;
@@ -90,8 +92,9 @@ function equipSword(id) {
 
 function sellSword(id) {
   const sword = state.swords.find((s) => s.id === id);
-  if (!sword) return;
+  if (!sword || performance.now() - lastSaleAt < SELL_COOLDOWN_MS) return;
   if (sword.infinity && !confirm("Sell the Infinity Blade for " + formatNumber(sword.worth) + " coins? This can't be undone.")) return;
+  lastSaleAt = performance.now();
   const wasEquipped = sword.id === state.equipped;
   state.swords = state.swords.filter((s) => s.id !== id);
   state.coins += sword.worth;
@@ -157,7 +160,9 @@ function renderArmory() {
   armoryEls.swordSlot.innerHTML = sword ? swordSVG(sword.tier, sword.color, sword.infinity) : "";
   armoryEls.swordSlot.style.setProperty("--swing", (sword ? SWORD_TIERS[sword.tier].swingMs : 500) + "ms");
   armoryEls.swing.disabled = !sword;
-  armoryEls.swing.textContent = sword ? "Hold to swing " + sword.name : "Forge a sword to swing";
+  armoryEls.swing.textContent = sword
+    ? "Hold to swing " + sword.name
+    : state.swords.length ? "Equip a sword to swing" : "Forge a sword to swing";
   renderDummyPicker();
   resetDummy();
   yard.nextSwingAt = 0;
@@ -187,10 +192,11 @@ function landHit(sword) {
   yard.hits += 1;
   const percent = sword.infinity ? infinityPercent(yard.hits) : 0;
   const bonus = (DUMMIES[yard.dummyIndex].hp * percent) / 100;
-  const dealt = Math.min(yard.hp, sword.damage + bonus);
+  const direct = sword.damage * damageMultiplier();
+  const dealt = Math.min(yard.hp, direct + bonus);
   yard.hp -= dealt;
   yard.dealt += dealt;
-  floatNumber(formatNumber(sword.damage), false);
+  floatNumber(formatNumber(direct), false);
   if (percent) floatNumber(percent + "% of max HP", true);
   armoryEls.dummy.classList.remove("struck");
   void armoryEls.dummy.offsetWidth; // restart the hit animation
@@ -203,7 +209,7 @@ function breakDummy() {
   yard.broken = true;
   armoryEls.dummy.classList.add("broken");
   const seconds = (performance.now() - yard.firstSwingAt) / 1000;
-  armoryEls.message.textContent = "Broken in " + seconds.toFixed(1) + "s and " + formatNumber(yard.hits) + " hits";
+  armoryEls.message.textContent = "Broken in " + seconds.toFixed(1) + "s and " + formatNumber(yard.hits) + (yard.hits === 1 ? " hit" : " hits");
   const message = armoryEls.message.textContent;
   yard.respawnTimer = setTimeout(() => {
     resetDummy();
@@ -228,20 +234,31 @@ function startSwinging() {
 
 function stopSwinging() {
   yard.holding = false;
+  yard.holdPointer = null;
   clearTimeout(yard.swingTimer);
 }
 
+// Only the finger or button that started the swing can stop it
+function stopSwingingPointer(e) {
+  if (yard.holdPointer === e.pointerId) stopSwinging();
+}
+
+armoryEls.swordSlot.addEventListener("animationend", () => armoryEls.swordSlot.classList.remove("swinging"));
 armoryEls.swing.addEventListener("pointerdown", (e) => {
-  if (e.button === 0) startSwinging();
+  if (e.button !== 0 || yard.holding) return;
+  yard.holdPointer = e.pointerId;
+  startSwinging();
 });
 armoryEls.swing.addEventListener("keydown", (e) => {
   if (e.code !== "Space" && e.code !== "Enter") return;
   e.preventDefault();
   if (!e.repeat) startSwinging();
 });
-armoryEls.swing.addEventListener("keyup", stopSwinging);
+armoryEls.swing.addEventListener("keyup", (e) => {
+  if (e.code === "Space" || e.code === "Enter") stopSwinging();
+});
 armoryEls.swing.addEventListener("blur", stopSwinging);
 armoryEls.swing.addEventListener("contextmenu", (e) => e.preventDefault());
-window.addEventListener("pointerup", stopSwinging);
-window.addEventListener("pointercancel", stopSwinging);
+window.addEventListener("pointerup", stopSwingingPointer);
+window.addEventListener("pointercancel", stopSwingingPointer);
 window.addEventListener("blur", stopSwinging);

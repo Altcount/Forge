@@ -2,14 +2,14 @@ const PLAYER_RADIUS = 14;
 const PLAYER_SPEED = 225;
 const PLAYER_MAX_HP = 100;
 const PLAYER_HIT_IFRAMES = 0.6;
-const WAVE_CLEAR_HEAL = 30;
+const WAVE_CLEAR_HEAL = 0.3; // share of max HP
 const INTERMISSION_SECONDS = 2.5;
 const SOUL_GEM_CHANCE = 0.01;
 const BOSS_SOUL_GEM_CHANCE = 0.15;
 const PICKUP_RADIUS = 95;
 
 // Always usable, so a player with no coins, metals or swords can still earn their way back
-const BARE_HANDS = { name: "Bare Hands", damage: 3, swingMs: 600, reach: 48, arc: 80, color: "#d8c0a0", infinity: false };
+const BARE_HANDS = { name: "Bare Hands", bare: true, damage: 3, swingMs: 600, reach: 48, arc: 80, color: "#d8c0a0", infinity: false };
 const TIER_REACH = [75, 90, 110, 135];
 const TIER_ARC = [90, 110, 140, 180];
 
@@ -42,6 +42,9 @@ const fieldEls = {
   hudWave: document.getElementById("hudWave"),
   hudHpFill: document.getElementById("hudHpFill"),
   hudHpText: document.getElementById("hudHpText"),
+  hudShield: document.getElementById("hudShield"),
+  hudShieldFill: document.getElementById("hudShieldFill"),
+  hudShieldText: document.getElementById("hudShieldText"),
   hudEarned: document.getElementById("hudEarned"),
   bossBar: document.getElementById("bossBar"),
   bossName: document.getElementById("bossName"),
@@ -135,10 +138,10 @@ const countSummons = (f) => f.enemies.filter((e) => e.summoned && !e.dead).lengt
 
 function fieldWeapon() {
   const sword = equippedSword();
-  if (!sword) return BARE_HANDS;
+  if (!sword) return Object.assign({}, BARE_HANDS, { damage: BARE_HANDS.damage * damageMultiplier() });
   return {
     name: sword.name,
-    damage: sword.damage,
+    damage: sword.damage * damageMultiplier(),
     swingMs: SWORD_TIERS[sword.tier].swingMs,
     reach: TIER_REACH[sword.tier],
     arc: TIER_ARC[sword.tier],
@@ -167,7 +170,7 @@ function createField(wave, w, h) {
     wave,
     phase: "spawning",
     time: 0,
-    player: { x: w / 2, y: h / 2, hp: PLAYER_MAX_HP, iframes: 0, slow: 0, pushX: 0, pushY: 0, swingCd: 0, swingLand: 0, swingAngle: 0, swingShow: 0, target: null, pointer: null },
+    player: { x: w / 2, y: h / 2, hp: playerMaxHp(), maxHp: playerMaxHp(), shield: playerMaxShield(), maxShield: playerMaxShield(), iframes: 0, slow: 0, pushX: 0, pushY: 0, swingCd: 0, swingLand: 0, swingAngle: 0, swingShow: 0, target: null, pointer: null },
     weapon: fieldWeapon(),
     enemies: [],
     shots: [],
@@ -185,6 +188,7 @@ function createField(wave, w, h) {
     wavesCleared: 0,
     shake: 0,
     banner: null,
+    notice: null,
     saveIn: 2,
     dirty: false,
   };
@@ -268,7 +272,8 @@ function waveCleared(f) {
   f.boss = null;
   f.phase = "intermission";
   f.phaseTimer = INTERMISSION_SECONDS;
-  f.player.hp = Math.min(PLAYER_MAX_HP, f.player.hp + WAVE_CLEAR_HEAL);
+  f.player.hp = Math.min(f.player.maxHp, f.player.hp + f.player.maxHp * WAVE_CLEAR_HEAL);
+  f.player.shield = f.player.maxShield;
   f.player.target = null;
   f.banner = { text: "Wave " + f.wave + " cleared", t: 2 };
   save();
@@ -294,10 +299,12 @@ function endRun(reason) {
 function hurtPlayer(f, amount) {
   const p = f.player;
   if (p.iframes > 0 || f.phase === "dead" || !(amount > 0)) return false;
-  p.hp -= amount;
+  const absorbed = Math.min(p.shield, amount);
+  p.shield -= absorbed;
+  p.hp -= amount - absorbed;
   p.iframes = PLAYER_HIT_IFRAMES;
   f.shake = 6;
-  addFloat(f, p.x, p.y - 22, "-" + formatNumber(amount), "#ff7a6b");
+  addFloat(f, p.x, p.y - 22, "-" + formatNumber(amount), absorbed === amount ? "#7fc4ff" : "#ff7a6b");
   if (p.hp <= 0) {
     p.hp = 0;
     f.phase = "dead";
@@ -337,8 +344,9 @@ function killEnemy(f, e) {
 
 function dropLoot(f, e) {
   const scatter = () => (Math.random() - 0.5) * 30;
-  f.drops.push({ kind: "gold", amount: Math.max(1, Math.round(e.gold)), x: e.x + scatter(), y: e.y + scatter() });
-  if (Math.random() < (e.isBoss ? BOSS_SOUL_GEM_CHANCE : SOUL_GEM_CHANCE)) {
+  const loot = lootMultiplier();
+  f.drops.push({ kind: "gold", amount: Math.max(1, Math.round(e.gold * loot)), x: e.x + scatter(), y: e.y + scatter() });
+  if (Math.random() < (e.isBoss ? BOSS_SOUL_GEM_CHANCE : SOUL_GEM_CHANCE) * loot) {
     f.drops.push({ kind: "gem", amount: soulGemDrop(f.wave), x: e.x + scatter(), y: e.y + scatter() });
   }
 }
@@ -349,9 +357,12 @@ function collectDrop(f, d) {
     f.earnedCoins += d.amount;
     addFloat(f, f.player.x, f.player.y - 34, "+" + formatNumber(d.amount), "#f0c040");
   } else {
+    const before = soulProgress(state.soulGems).level;
     state.soulGems += d.amount;
     f.earnedGems += d.amount;
     addFloat(f, f.player.x, f.player.y - 48, "+" + d.amount + " soul gem", "#b78cff");
+    const after = soulProgress(state.soulGems).level;
+    if (after > before) f.notice = { text: "Soul level " + after + "! Spend your skill point after this run.", t: 4 };
   }
   f.dirty = true;
   renderCoins();
@@ -541,6 +552,10 @@ function fieldStep(f, dt) {
     f.banner.t -= dt;
     if (f.banner.t <= 0) f.banner = null;
   }
+  if (f.notice) {
+    f.notice.t -= dt;
+    if (f.notice.t <= 0) f.notice = null;
+  }
   f.floats = f.floats.filter((n) => {
     n.t -= dt;
     n.y -= 34 * dt;
@@ -666,7 +681,7 @@ function drawPlayer(ctx, f) {
   }
   const bladeAngle = p.swingShow > 0 ? p.swingAngle - arc / 2 + arc * Math.min(1, progress * 2) : -0.9;
   ctx.strokeStyle = w.color;
-  ctx.lineWidth = w === BARE_HANDS ? 7 : 4 + (w.reach - 75) / 14;
+  ctx.lineWidth = w.bare ? 7 : 4 + (w.reach - 75) / 14;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(p.x, p.y);
@@ -678,6 +693,13 @@ function drawPlayer(ctx, f) {
   ctx.globalAlpha = flash ? 0.45 : 1;
   disc(ctx, p.x, p.y, PLAYER_RADIUS, p.slow > 0 ? "#a8dcf5" : "#f1ece2");
   disc(ctx, p.x, p.y, PLAYER_RADIUS * 0.55, "#c4752f");
+  if (p.shield > 0) {
+    ctx.strokeStyle = "#7fc4ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, PLAYER_RADIUS + 4, 0, TAU);
+    ctx.stroke();
+  }
   ctx.globalAlpha = 1;
 }
 
@@ -736,12 +758,22 @@ function drawField(f) {
     ctx.fillText(f.banner.text, f.w / 2, f.h * 0.22);
     ctx.globalAlpha = 1;
   }
+  if (f.notice) {
+    ctx.font = "700 20px 'Segoe UI', system-ui, sans-serif";
+    ctx.fillStyle = "#cdb0ff";
+    ctx.fillText(f.notice.text, f.w / 2, f.h * 0.3, f.w - 30);
+  }
 }
 
 function renderHud(f) {
   fieldEls.hudWave.textContent = "Wave " + f.wave;
-  fieldEls.hudHpFill.style.width = (f.player.hp / PLAYER_MAX_HP) * 100 + "%";
-  fieldEls.hudHpText.textContent = Math.ceil(f.player.hp) + " / " + PLAYER_MAX_HP;
+  fieldEls.hudHpFill.style.width = (f.player.hp / f.player.maxHp) * 100 + "%";
+  fieldEls.hudHpText.textContent = Math.ceil(f.player.hp) + " / " + f.player.maxHp;
+  fieldEls.hudShield.hidden = f.player.maxShield <= 0;
+  if (f.player.maxShield > 0) {
+    fieldEls.hudShieldFill.style.width = (f.player.shield / f.player.maxShield) * 100 + "%";
+    fieldEls.hudShieldText.textContent = Math.ceil(f.player.shield) + " / " + f.player.maxShield;
+  }
   fieldEls.hudEarned.textContent = "+" + formatNumber(f.earnedCoins) + " coins · +" + formatNumber(f.earnedGems) + " gems";
   fieldEls.bossBar.hidden = !f.boss;
   if (f.boss) {
@@ -801,8 +833,9 @@ function showFieldsLobby() {
   const weapon = fieldWeapon();
   fieldEls.weapon.textContent =
     weapon.name + ": " + formatNumber(weapon.damage) + " damage, " + (weapon.swingMs / 1000).toFixed(1) + "s per swing" +
-    (weapon === BARE_HANDS ? ". Equip a sword in the Armory to hit far harder." : ".");
+    (weapon.bare ? ". Equip a sword in the Armory to hit far harder." : ".");
   renderWaveChooser();
+  renderSoulPanel();
 }
 
 function startFieldRun() {
@@ -829,21 +862,25 @@ function pointerToField(e) {
 }
 
 fieldEls.canvas.addEventListener("pointerdown", (e) => {
-  if (!field) return;
+  if (!field || field.player.pointer) return;
   e.preventDefault();
   try {
     fieldEls.canvas.setPointerCapture(e.pointerId);
   } catch (err) {}
+  field.player.pointerId = e.pointerId;
   field.player.pointer = pointerToField(e);
 });
 fieldEls.canvas.addEventListener("pointermove", (e) => {
-  if (field && field.player.pointer) field.player.pointer = pointerToField(e);
+  if (field && field.player.pointer && e.pointerId === field.player.pointerId) field.player.pointer = pointerToField(e);
 });
 function releaseFieldPointer() {
   if (field) field.player.pointer = null;
 }
-window.addEventListener("pointerup", releaseFieldPointer);
-window.addEventListener("pointercancel", releaseFieldPointer);
+function liftFieldPointer(e) {
+  if (field && e.pointerId === field.player.pointerId) releaseFieldPointer();
+}
+window.addEventListener("pointerup", liftFieldPointer);
+window.addEventListener("pointercancel", liftFieldPointer);
 fieldEls.canvas.addEventListener("contextmenu", (e) => e.preventDefault());
 
 document.addEventListener("keydown", (e) => {

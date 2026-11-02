@@ -3,7 +3,7 @@ const SWORD_TIERS = [
   { name: "Light Sword", min: 2, max: 4, swingMs: 500, damageMult: 1, worthMult: 1, strikes: 4, speed: 1, bladeLen: 100, bladeHalf: 5, guardHalf: 16, grip: 16 },
   { name: "Medium Sword", min: 5, max: 7, swingMs: 800, damageMult: 1.1, worthMult: 1.1, strikes: 6, speed: 1.1, bladeLen: 125, bladeHalf: 7, guardHalf: 20, grip: 20 },
   { name: "Heavy Sword", min: 8, max: 10, swingMs: 1200, damageMult: 1.25, worthMult: 1.2, strikes: 8, speed: 1.2, bladeLen: 150, bladeHalf: 10, guardHalf: 25, grip: 26 },
-  { name: "Greatsword", min: 10, max: 12, swingMs: 1800, damageMult: 1.5, worthMult: 1.3, strikes: 10, speed: 1.3, bladeLen: 178, bladeHalf: 14, guardHalf: 30, grip: 34 },
+  { name: "Greatsword", min: 10, max: 12, swingMs: 1800, damageMult: 1.5, worthMult: 1.3, strikes: 10, speed: 1.3, bladeLen: 178, bladeHalf: 14, guardHalf: 30, grip: 31 },
 ];
 
 const INFINITY_BLADE = { name: "Infinity Blade", metal: "Mythril", tier: 0, amount: 4 };

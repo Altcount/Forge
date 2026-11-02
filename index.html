@@ -25,7 +25,7 @@
   </nav>
 
   <main>
-    <div class="view" data-view="roll">
+    <div class="view" data-view="roll" hidden>
       <section class="stage" id="stage">
         <div class="ingot" aria-hidden="true"></div>
         <h2 class="metal-name" id="metalName">Ready to roll</h2>
@@ -148,12 +148,23 @@
         </div>
         <button class="roll-btn" id="startFieldBtn" type="button">Enter the Fields</button>
         <p class="preview-note fields-note">Move with WASD or the arrow keys, or hold on the field and your character walks to your pointer. Your sword swings by itself at anything in reach. You keep everything you pick up, even if you fall.</p>
+
+        <section class="soul-panel">
+          <div class="collection-head">
+            <h3>Soul level <strong id="soulLevel">1</strong></h3>
+            <p id="soulPoints"></p>
+          </div>
+          <div class="soul-track"><div class="soul-fill" id="soulFill"></div></div>
+          <p class="preview-note" id="soulProgress"></p>
+          <ul class="skill-list" id="skillList"></ul>
+        </section>
       </div>
 
       <div class="fields-run" id="fieldsRun" hidden>
         <div class="field-hud">
           <strong id="hudWave"></strong>
           <div class="hud-hp"><div class="hud-hp-fill" id="hudHpFill"></div><span id="hudHpText"></span></div>
+          <div class="hud-hp" id="hudShield" hidden><div class="hud-shield-fill" id="hudShieldFill"></div><span id="hudShieldText"></span></div>
           <span class="hud-earned" id="hudEarned"></span>
         </div>
         <div class="boss-bar" id="bossBar" hidden>
@@ -166,6 +177,14 @@
     </div>
   </main>
 
+  <div class="stale-notice" id="staleNotice" role="alertdialog" aria-labelledby="staleTitle" hidden>
+    <div class="stale-box">
+      <h2 id="staleTitle">The game was played in another tab</h2>
+      <p>This tab is out of date and has stopped saving. Reload it to carry on from your latest progress.</p>
+      <button class="roll-btn" id="staleReloadBtn" type="button">Reload</button>
+    </div>
+  </div>
+
   <script src="metals.js"></script>
   <script src="swords.js"></script>
   <script src="game.js"></script>
@@ -173,5 +192,6 @@
   <script src="forge.js"></script>
   <script src="bosses.js"></script>
   <script src="fields.js"></script>
+  <script src="souls.js"></script>
 </body>
 </html>
