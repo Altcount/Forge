@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sword RNG</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Sword RNG</h1>
+    <div class="coins">
+      <span class="coin" aria-hidden="true"></span>
+      <strong id="coins">0</strong> coins
+      <span class="income" id="income"></span>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Game sections">
+    <button class="tab" type="button" role="tab" data-view="roll" aria-selected="true">Roll</button>
+    <button class="tab" type="button" role="tab" data-view="forge" aria-selected="false">Forge</button>
+    <button class="tab" type="button" role="tab" data-view="armory" aria-selected="false">Armory</button>
+  </nav>
+
+  <main>
+    <div class="view" data-view="roll">
+      <section class="stage" id="stage">
+        <div class="ingot" aria-hidden="true"></div>
+        <h2 class="metal-name" id="metalName">Ready to roll</h2>
+        <p class="metal-tier" id="metalTier">300 metals, from Iron to Adamantite</p>
+        <p class="metal-odds"><span id="metalOdds"></span> <span class="new-badge" id="newBadge" hidden>New!</span></p>
+        <p class="sr-only" id="status" role="status"></p>
+      </section>
+
+      <button class="roll-btn" id="rollBtn" type="button">Roll <span>25 coins</span></button>
+
+      <section class="collection">
+        <div class="collection-head">
+          <h2>Metals</h2>
+          <p><strong id="foundCount">0</strong> of 300 found · <strong id="rollCount">0</strong> rolls</p>
+        </div>
+        <ol class="metal-grid" id="metalGrid"></ol>
+        <button class="reset-btn" id="resetBtn" type="button">Reset save</button>
+      </section>
+    </div>
+
+    <div class="view" data-view="forge" hidden>
+      <div id="forgeSetup">
+        <h2 class="section-title">Choose a size</h2>
+        <div class="tier-picker" id="tierPicker"></div>
+
+        <div class="forge-columns">
+          <section>
+            <div class="collection-head">
+              <h2 class="section-title">Choose metals</h2>
+              <p id="materialCount"></p>
+            </div>
+            <div class="material-tools">
+              <button class="small-btn" id="fillBtn" type="button">Fill with common metals</button>
+              <button class="small-btn" id="clearBtn" type="button">Clear</button>
+            </div>
+            <p class="empty-note" id="materialEmpty" hidden>You have no metals yet. Roll some first.</p>
+            <ul class="material-list" id="materialList"></ul>
+          </section>
+
+          <aside class="preview">
+            <div class="preview-art" id="previewArt"></div>
+            <div id="previewStats"></div>
+            <button class="roll-btn" id="startForgeBtn" type="button" disabled>Start forging</button>
+            <p class="preview-note">Metals are used up when you start, and there's no retry. Accuracy decides the final stats.</p>
+          </aside>
+        </div>
+      </div>
+
+      <div class="forge-run" id="forgeRun" hidden>
+        <ol class="forge-steps" id="forgeSteps"></ol>
+        <h2 class="metal-name" id="stageTitle"></h2>
+        <p class="stage-hint" id="stageHint"></p>
+        <div class="forge-arena" id="forgeArena"></div>
+        <p class="forge-feedback" id="forgeFeedback" aria-live="polite"></p>
+        <button class="roll-btn action-btn" id="forgeAction" type="button"></button>
+        <p class="preview-note">You can also use Space.</p>
+      </div>
+
+      <div class="forge-result" id="forgeResult" hidden>
+        <h2 class="metal-name" id="resultTitle"></h2>
+        <div id="resultCard"></div>
+        <div class="result-actions">
+          <button class="roll-btn" id="forgeAgainBtn" type="button">Forge another</button>
+          <button class="small-btn" id="toArmoryBtn" type="button">Go to the armory</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" data-view="armory" hidden>
+      <section class="yard">
+        <div class="collection-head">
+          <h2 class="section-title">Training yard</h2>
+          <div class="dummy-picker" id="dummyPicker"></div>
+        </div>
+        <div class="yard-scene">
+          <div class="yard-sword" id="yardSword"></div>
+          <div class="yard-dummy" id="yardDummy">
+            <div class="yard-floats" id="yardFloats"></div>
+            <svg viewBox="0 0 100 160" aria-hidden="true">
+              <rect x="46" y="60" width="8" height="96" class="dummy-post"/>
+              <rect x="14" y="62" width="72" height="9" rx="3" class="dummy-post"/>
+              <rect x="30" y="50" width="40" height="62" rx="9" class="dummy-body"/>
+              <circle cx="50" cy="30" r="18" class="dummy-body"/>
+            </svg>
+          </div>
+        </div>
+        <div class="hp-head"><strong id="dummyName"></strong><span id="hpText"></span></div>
+        <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
+        <p class="yard-stats"><span>Hits <strong id="yardHits">0</strong></span> <span>Damage per second <strong id="yardDps">0</strong></span></p>
+        <p class="yard-message" id="yardMessage" aria-live="polite"></p>
+        <button class="roll-btn action-btn" id="swingBtn" type="button"></button>
+      </section>
+
+      <section class="collection">
+        <div class="collection-head">
+          <h2 class="section-title">Your swords</h2>
+          <p><strong id="swordCount">0</strong> forged and kept</p>
+        </div>
+        <p class="empty-note" id="swordEmpty">No swords yet. Head to the forge.</p>
+        <div class="sword-list" id="swordList"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="metals.js"></script>
+  <script src="swords.js"></script>
+  <script src="game.js"></script>
+  <script src="armory.js"></script>
+  <script src="forge.js"></script>
+</body>
+</html>
